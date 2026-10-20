@@ -1,0 +1,2 @@
+# After venv: install PyTorch with CUDA from https://pytorch.org then:
+ultralytics>=8.3

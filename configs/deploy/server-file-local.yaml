@@ -1,0 +1,25 @@
+# Server GPU — file video đã copy lên server (không cần RTSP từ laptop)
+source: data/parking_demo.mp4
+slots_path: configs/slots/parking_lot_01.json
+
+pipeline:
+  mode: replay
+  camera_id: file-local-01
+  drop_frames_in_realtime: false
+
+detection:
+  model_path: yolo11n.pt
+  device: "0"
+  imgsz: 640
+
+ui:
+  enabled: true
+  panel_width: 280
+
+inspector:
+  enabled: true
+  host: 127.0.0.1
+  port: 8765
+
+analytics:
+  log_path: logs/events.jsonl

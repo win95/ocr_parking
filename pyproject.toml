@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smart-parking"
+version = "0.1.0"
+description = "AI-powered smart parking analytics"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24",
+  "opencv-python>=4.8",
+  "pyyaml>=6.0",
+  "pydantic>=2.0",
+  "ultralytics>=8.3",
+  "psutil>=5.9",
+  "pillow>=10.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+roboflow = ["roboflow>=1.1"]
+detr = ["transformers>=4.40", "torch"]
+inspector = ["fastapi>=0.110", "uvicorn>=0.27"]
+
+[project.scripts]
+smart-parking = "smart_parking.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

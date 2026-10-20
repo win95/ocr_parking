@@ -1,0 +1,3 @@
+# Bản ghi quyết định kiến trúc (ADR)
+
+Dùng `000-template.md` cho ADR mới. Đánh số tuần tự: `001-yolo-primary.md`, ...

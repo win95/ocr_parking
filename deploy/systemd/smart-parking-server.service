@@ -1,0 +1,15 @@
+[Unit]
+Description=Smart Parking Analytics (server)
+After=network.target
+
+[Service]
+Type=simple
+User=smartparking
+WorkingDirectory=/opt/smart-parking
+Environment=SMART_PARKING_CONFIG=/opt/smart-parking/configs/deploy/server.local.yaml
+ExecStart=/opt/smart-parking/.venv/bin/python -m smart_parking
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
