@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pipeline Inspector</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; background: #1a1a1a; color: #eee; }
+    h1 { font-size: 1.25rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    section { background: #2a2a2a; padding: 12px; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    td, th { border-bottom: 1px solid #444; padding: 4px 6px; text-align: left; }
+    .bad { color: #f66; }
+    .ok { color: #6f6; }
+    pre { font-size: 0.75rem; max-height: 200px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>Smart Parking — Pipeline Inspector</h1>
+  <p>Chế độ: <span id="mode">—</span> | Bất đồng fusion: <span id="disagree">0</span></p>
+  <div class="grid">
+    <section>
+      <h2>Sức khỏe tầng</h2>
+      <table id="layers"><tr><th>Tầng</th><th>Bật</th><th>OK</th><th>Lỗi</th></tr></table>
+    </section>
+    <section>
+      <h2>Metric frame</h2>
+      <pre id="metrics">đang tải…</pre>
+    </section>
+    <section style="grid-column: 1 / -1">
+      <h2>Log gần đây</h2>
+      <pre id="logs"></pre>
+    </section>
+  </div>
+  <script>
+    async function refresh() {
+      const r = await fetch('/api/state');
+      const data = await r.json();
+      document.getElementById('mode').textContent = data.config_mode || 'normal';
+      document.getElementById('disagree').textContent = data.fusion_disagreements ?? 0;
+      document.getElementById('metrics').textContent = JSON.stringify(data.metrics, null, 2);
+      const tbody = document.getElementById('layers');
+      tbody.innerHTML = '<tr><th>Tầng</th><th>Bật</th><th>OK</th><th>Lỗi</th></tr>';
+      for (const [name, h] of Object.entries(data.layers || {})) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${name}</td><td>${h.enabled}</td><td class="${h.healthy?'ok':'bad'}">${h.healthy}</td><td>${h.last_error||''}</td>`;
+        tbody.appendChild(tr);
+      }
+      document.getElementById('logs').textContent = JSON.stringify(data.logs || [], null, 2);
+    }
+    setInterval(refresh, 1000);
+    refresh();
+  </script>
+</body>
+</html>

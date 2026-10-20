@@ -1,28 +1,28 @@
-# Smart Parking Analytics
+# Phân tích bãi đỗ xe thông minh
 
-Real-time parking slot occupancy with YOLO11, temporal smoothing, and OpenCV UI. TensorRT-ready on Ubuntu + NVIDIA GPU.
+Theo dõi chỗ trống/đã chiếm thời gian thực với YOLO11, làm mượt theo thời gian và giao diện OpenCV. Sẵn sàng TensorRT trên Ubuntu + GPU NVIDIA.
 
-**Documentation:** [docs/README.md](docs/README.md) · **Tech stack:** [docs/TECH_STACK.md](docs/TECH_STACK.md)
+**Tài liệu:** [docs/README.md](docs/README.md) · **Công nghệ:** [docs/TECH_STACK.md](docs/TECH_STACK.md)
 
-## Quick start
+## Bắt đầu nhanh
 
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,inspector]"
-# Install PyTorch with CUDA from https://pytorch.org
+# Cài PyTorch CUDA: https://pytorch.org
 python scripts/verify_gpu_ready.py
 python -m smart_parking --config configs/default.yaml --source data/sample.mp4
 ```
 
-## Modular pipeline & debug
+## Pipeline modular & gỡ lỗi
 
-- Architecture: [docs/PIPELINE_ARCHITECTURE.md](docs/PIPELINE_ARCHITECTURE.md)
-- Debug mode: `python -m smart_parking --config configs/modes/debug.yaml`
-- Pipeline Inspector UI: `http://127.0.0.1:8765` (when `inspector.enabled: true`)
-- Dual DETR+YOLO: `pip install -e ".[detr]"` then `configs/modes/dual_model.yaml`
+- Kiến trúc: [docs/PIPELINE_ARCHITECTURE.md](docs/PIPELINE_ARCHITECTURE.md)
+- Chế độ debug: `python -m smart_parking --config configs/modes/debug.yaml`
+- Giao diện Pipeline Inspector: `http://127.0.0.1:8765` (khi `inspector.enabled: true`)
+- DETR + YOLO: `pip install -e ".[detr]"` rồi dùng `configs/modes/dual_model.yaml`
 
-Calibrate slots: `python scripts/calibrate_slots.py --image data/ref.jpg --out configs/slots/parking_lot_01.json`
+Calibrate slot: `python scripts/calibrate_slots.py --image data/ref.jpg --out configs/slots/parking_lot_01.json`
 
-Hardware: [docs/setup/HARDWARE.md](docs/setup/HARDWARE.md)
+Phần cứng: [docs/setup/HARDWARE.md](docs/setup/HARDWARE.md)
 
-Server GPU + laptop client (kịch bản B): [docs/setup/SCENARIO_B_LAPTOP_CLIENT.md](docs/setup/SCENARIO_B_LAPTOP_CLIENT.md)
+**Server GPU + laptop client (kịch bản B):** [docs/setup/SCENARIO_B_LAPTOP_CLIENT.md](docs/setup/SCENARIO_B_LAPTOP_CLIENT.md)

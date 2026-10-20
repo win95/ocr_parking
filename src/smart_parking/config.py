@@ -1,0 +1,154 @@
+"""Application configuration."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import Literal
+
+import yaml
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+class DetectionConfig(BaseModel):
+    """Legacy YOLO settings (alias for yolo)."""
+
+    backend: str = "pytorch"
+    model_path: str = "yolo11n.pt"
+    confidence: float = 0.35
+    imgsz: int = 640
+    device: str = "0"
+    vehicle_classes: list[str] = Field(
+        default_factory=lambda: ["car", "truck", "bus", "motorcycle", "vehicle"]
+    )
+
+
+class YoloConfig(DetectionConfig):
+    """YOLO11 stage configuration."""
+
+
+class DetrConfig(BaseModel):
+    model_id: str = "facebook/detr-resnet-50-dc5"
+    confidence: float = 0.5
+    device: str = "cpu"
+    vehicle_only: bool = True
+
+
+class FusionConfig(BaseModel):
+    strategy: Literal["yolo_only", "detr_only", "union", "weighted_nms"] = "yolo_only"
+    iou_threshold: float = 0.5
+    detr_weight: float = 0.45
+    yolo_weight: float = 0.55
+
+
+class LayerFlags(BaseModel):
+    ingest: bool = True
+    detr: bool = False
+    yolo: bool = True
+    fusion: bool = False
+    tracking: bool = True
+    occupancy: bool = True
+    overlay: bool = True
+    minimap: bool = False
+
+
+class PipelineConfig(BaseModel):
+    mode: Literal["normal", "debug", "replay", "benchmark"] = "normal"
+    camera_id: str = "cam0"
+    queue_max: int = 1
+    drop_frames_in_realtime: bool = True
+    stop_on_stage_error: bool = True
+
+    @model_validator(mode="after")
+    def replay_no_drop(self) -> PipelineConfig:
+        if self.mode == "replay":
+            object.__setattr__(self, "drop_frames_in_realtime", False)
+        return self
+
+    layers: LayerFlags = Field(default_factory=LayerFlags)
+
+
+class OccupancyConfig(BaseModel):
+    vehicle_classes: list[str] = Field(
+        default_factory=lambda: ["car", "truck", "bus", "motorcycle", "vehicle"]
+    )
+    unknown_on_empty: bool = False
+    stale_after_ms: float = 60_000.0
+
+
+class InspectorConfig(BaseModel):
+    enabled: bool = False
+    host: str = "127.0.0.1"
+    port: int = 8765
+
+
+class ArtifactsConfig(BaseModel):
+    enabled: bool = False
+    directory: str = "logs/artifacts"
+    max_frames: int = 100
+    sample_every_n: int = 30
+
+
+class SmoothingConfig(BaseModel):
+    window: int = 15
+    t_on: int = 10
+    t_off: int = 12
+
+
+class TrackingConfig(BaseModel):
+    coast_frames: int = 8
+    iou_threshold: float = 0.3
+
+
+class UiConfig(BaseModel):
+    enabled: bool = True
+    panel_width: int = 280
+
+
+class AnalyticsConfig(BaseModel):
+    log_path: str = "logs/events.jsonl"
+
+
+class AppConfig(BaseModel):
+    source: str = "data/sample.mp4"
+    slots_path: str = "configs/slots/parking_lot_01.json"
+    detection: DetectionConfig = Field(default_factory=DetectionConfig)
+    yolo: YoloConfig | None = None
+    detr: DetrConfig = Field(default_factory=DetrConfig)
+    fusion: FusionConfig = Field(default_factory=FusionConfig)
+    pipeline: PipelineConfig = Field(default_factory=PipelineConfig)
+    occupancy: OccupancyConfig = Field(default_factory=OccupancyConfig)
+    smoothing: SmoothingConfig = Field(default_factory=SmoothingConfig)
+    tracking: TrackingConfig = Field(default_factory=TrackingConfig)
+    ui: UiConfig = Field(default_factory=UiConfig)
+    analytics: AnalyticsConfig = Field(default_factory=AnalyticsConfig)
+    inspector: InspectorConfig = Field(default_factory=InspectorConfig)
+    artifacts: ArtifactsConfig = Field(default_factory=ArtifactsConfig)
+    replay_path: str | None = None
+
+    @model_validator(mode="after")
+    def sync_yolo_and_layers(self) -> AppConfig:
+        if self.yolo is None:
+            self.yolo = YoloConfig(**self.detection.model_dump())
+        if self.pipeline.layers.fusion and not (
+            self.pipeline.layers.detr and self.pipeline.layers.yolo
+        ):
+            raise ValueError("fusion requires both detr and yolo enabled")
+        return self
+
+    @field_validator("source")
+    @classmethod
+    def validate_source_path(cls, value: str) -> str:
+        if value.startswith(("webcam:", "rtsp://")):
+            return value
+        if ".." in Path(value).parts:
+            raise ValueError("source path must not contain '..'")
+        return value
+
+
+def load_config(path: str | Path | None = None) -> AppConfig:
+    """Load YAML config from path or SMART_PARKING_CONFIG env."""
+    cfg_path = path or os.environ.get("SMART_PARKING_CONFIG", "configs/default.yaml")
+    with open(cfg_path, encoding="utf-8") as fh:
+        data = yaml.safe_load(fh) or {}
+    return AppConfig.model_validate(data)

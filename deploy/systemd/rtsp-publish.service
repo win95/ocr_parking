@@ -1,0 +1,13 @@
+[Unit]
+Description=RTSP parking camera stream (client)
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/smart-parking/stream.env
+ExecStart=/opt/smart-parking/scripts/run_rtsp_publish.sh ${VIDEO_DEVICE}
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

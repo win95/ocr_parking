@@ -1,0 +1,21 @@
+source: data/sample.mp4
+slots_path: configs/slots/parking_lot_01.json
+
+pipeline:
+  mode: benchmark
+  layers:
+    detr: false
+    yolo: true
+    fusion: false
+    overlay: false
+    minimap: false
+
+detection:
+  model_path: yolo11n.pt
+  device: "0"
+
+ui:
+  enabled: false
+
+inspector:
+  enabled: false

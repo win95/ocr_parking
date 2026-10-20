@@ -1,0 +1,28 @@
+source: data/sample.mp4
+slots_path: configs/slots/parking_lot_01.json
+
+pipeline:
+  mode: debug
+  layers:
+    detr: true
+    yolo: true
+    fusion: true
+    minimap: true
+
+detr:
+  model_id: facebook/detr-resnet-50-dc5
+  confidence: 0.5
+  device: cpu
+
+detection:
+  model_path: yolo11n.pt
+  device: "0"
+
+fusion:
+  strategy: weighted_nms
+  iou_threshold: 0.5
+  detr_weight: 0.45
+  yolo_weight: 0.55
+
+inspector:
+  enabled: true

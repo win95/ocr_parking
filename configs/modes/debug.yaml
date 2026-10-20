@@ -1,0 +1,54 @@
+source: data/sample.mp4
+slots_path: configs/slots/parking_lot_01.json
+
+pipeline:
+  mode: debug
+  camera_id: cam0
+  queue_max: 1
+  layers:
+    ingest: true
+    detr: false
+    yolo: true
+    fusion: false
+    tracking: true
+    occupancy: true
+    overlay: true
+    minimap: true
+
+detection:
+  backend: pytorch
+  model_path: yolo11n.pt
+  confidence: 0.35
+  imgsz: 640
+  device: "0"
+
+artifacts:
+  enabled: true
+  directory: logs/artifacts
+  max_frames: 50
+  sample_every_n: 5
+
+inspector:
+  enabled: true
+  host: 127.0.0.1
+  port: 8765
+
+ui:
+  enabled: true
+  panel_width: 300
+
+analytics:
+  log_path: logs/events.jsonl
+
+smoothing:
+  window: 15
+  t_on: 10
+  t_off: 12
+
+tracking:
+  coast_frames: 8
+  iou_threshold: 0.3
+
+occupancy:
+  unknown_on_empty: true
+  stale_after_ms: 30000

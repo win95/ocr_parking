@@ -1,0 +1,56 @@
+source: data/sample.mp4
+slots_path: configs/slots/parking_lot_01.json
+
+pipeline:
+  mode: normal
+  camera_id: cam0
+  queue_max: 1
+  layers:
+    ingest: true
+    detr: false
+    yolo: true
+    fusion: false
+    tracking: true
+    occupancy: true
+    overlay: true
+    minimap: false
+
+inspector:
+  enabled: false
+  host: 127.0.0.1
+  port: 8765
+
+artifacts:
+  enabled: false
+  directory: logs/artifacts
+  max_frames: 100
+  sample_every_n: 30
+
+detection:
+  backend: pytorch
+  model_path: yolo11n.pt
+  confidence: 0.35
+  imgsz: 640
+  device: "0"
+  vehicle_classes:
+    - car
+    - truck
+    - bus
+    - motorcycle
+    - vehicle
+
+smoothing:
+  window: 15
+  t_on: 10
+  t_off: 12
+
+tracking:
+  coast_frames: 8
+  iou_threshold: 0.3
+
+ui:
+  enabled: true
+  panel_width: 280
+
+analytics:
+  log_path: logs/events.jsonl

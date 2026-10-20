@@ -1,0 +1,23 @@
+# Kịch bản C: server xử lý file video (copy từ client)
+source: data/incoming_clip.mp4
+slots_path: configs/slots/parking_lot_01.json
+
+pipeline:
+  mode: replay
+  camera_id: file-replay-01
+  drop_frames_in_realtime: false
+
+detection:
+  model_path: yolo11n.pt
+  device: "0"
+
+ui:
+  enabled: false
+
+inspector:
+  enabled: true
+  host: 127.0.0.1
+  port: 8765
+
+analytics:
+  log_path: logs/events.jsonl

@@ -1,0 +1,27 @@
+# Kịch bản A: một máy client có GPU (webcam / file local)
+source: webcam:0
+slots_path: configs/slots/parking_lot_01.json
+
+pipeline:
+  mode: normal
+  camera_id: edge-cam0
+  queue_max: 1
+  drop_frames_in_realtime: true
+
+detection:
+  backend: pytorch
+  model_path: yolo11n.pt
+  device: "0"
+  imgsz: 640
+  confidence: 0.35
+
+ui:
+  enabled: true
+
+inspector:
+  enabled: true
+  host: 127.0.0.1
+  port: 8765
+
+analytics:
+  log_path: logs/events.jsonl
