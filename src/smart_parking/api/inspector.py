@@ -18,24 +18,16 @@ def create_app():
 
     app = FastAPI(title="Smart Parking Pipeline Inspector")
 
-    def _client_ok(request) -> bool:
-        host = getattr(request.client, "host", None)
-        return host in ("127.0.0.1", "::1", "localhost")
-
     @app.get("/api/health")
     def health() -> dict:
         return {"ok": True}
 
     @app.get("/api/state")
-    def state(request) -> JSONResponse:
-        if not _client_ok(request):
-            return JSONResponse({"error": "forbidden"}, status_code=403)
+    def state() -> JSONResponse:
         return JSONResponse(INSPECTOR_STORE.to_dict())
 
     @app.get("/api/metrics")
-    def metrics(request) -> JSONResponse:
-        if not _client_ok(request):
-            return JSONResponse({"error": "forbidden"}, status_code=403)
+    def metrics() -> JSONResponse:
         data = INSPECTOR_STORE.to_dict()
         return JSONResponse(data.get("metrics") or {})
 
