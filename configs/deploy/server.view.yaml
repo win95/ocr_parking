@@ -1,0 +1,51 @@
+# Server GPU — hiển thị camera client lên màn hình server (UI + overlay + minimap)
+# Dùng cho demo: xem camera từ client trên server.
+source: rtsp://192.168.100.239:8554/parking
+slots_path: configs/slots/parking_lot_01.json
+
+ingest:
+  rtsp_transport: tcp
+  connect_timeout_ms: 8000
+  reconnect: true
+  reconnect_delay_seconds: 3.0
+  max_reconnects: null
+
+pipeline:
+  mode: normal
+  camera_id: remote-parking-01
+  queue_max: 1
+  drop_frames_in_realtime: true
+  stop_on_stage_error: true
+  layers:
+    detr: false
+    yolo: true
+    fusion: false
+    tracking: true
+    occupancy: true
+    overlay: true
+    minimap: true
+
+detection:
+  backend: pytorch
+  model_path: models/yolo11n.pt
+  device: "0"
+  imgsz: 640
+  confidence: 0.35
+
+ui:
+  enabled: true
+  panel_width: 280
+
+inspector:
+  enabled: true
+  host: 127.0.0.1
+  port: 8767
+
+artifacts:
+  enabled: true
+  directory: logs/artifacts_view
+  max_frames: 200
+  sample_every_n: 15
+
+analytics:
+  log_path: logs/events_view.jsonl

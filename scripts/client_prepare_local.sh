@@ -26,17 +26,29 @@ elif [[ -x "$ROOT/tools/bin/ffmpeg" ]]; then
   echo "OK: ffmpeg (static) $(tools/bin/ffmpeg -version | head -1)"
 else
   echo "Tải ffmpeg static (không cần sudo)..."
-  mkdir -p "$ROOT/tools/bin"
+  mkdir -p "$ROOT/tools/bin" "$HOME/.local/bin"
   curl -fL --retry 3 -o /tmp/ffmpeg-static.tar.xz \
     "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-linux64-gpl.tar.xz"
   tar -xJf /tmp/ffmpeg-static.tar.xz -C /tmp
-  cp /tmp/ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /tmp/ffmpeg-master-latest-linux64-gpl/bin/ffprobe "$ROOT/tools/bin/"
-  chmod +x "$ROOT/tools/bin/ffmpeg" "$ROOT/tools/bin/ffprobe"
-  ln -sf "$ROOT/tools/bin/ffmpeg" "$HOME/.local/bin/ffmpeg"
-  ln -sf "$ROOT/tools/bin/ffprobe" "$HOME/.local/bin/ffprobe"
+  for bin in ffmpeg ffprobe ffplay; do
+    cp "/tmp/ffmpeg-master-latest-linux64-gpl/bin/$bin" "$ROOT/tools/bin/"
+    chmod +x "$ROOT/tools/bin/$bin"
+    ln -sf "$ROOT/tools/bin/$bin" "$HOME/.local/bin/$bin"
+  done
   rm -rf /tmp/ffmpeg-static.tar.xz /tmp/ffmpeg-master-latest-linux64-gpl
   echo "OK: ffmpeg (static) $(ffmpeg -version | head -1)"
 fi
+
+# ffprobe / ffplay — dùng để kiểm tra stream RTSP (docs: SCENARIO_B_LAPTOP_CLIENT.md)
+for tool in ffprobe ffplay; do
+  if command -v "$tool" >/dev/null; then
+    echo "OK: $tool $("$tool" -version | head -1 | sed 's/.*version //;s/ .*//')"
+  elif [[ -x "$ROOT/tools/bin/$tool" ]]; then
+    echo "OK: $tool (static) $("$ROOT/tools/bin/$tool" -version | head -1 | sed 's/.*version //;s/ .*//')"
+  else
+    echo "THIẾU $tool — cài: sudo apt install ffmpeg"
+  fi
+done
 
 if command -v v4l2-ctl >/dev/null; then
   v4l2-ctl --list-devices 2>/dev/null || true

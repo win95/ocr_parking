@@ -146,6 +146,69 @@ ssh -L 8765:127.0.0.1:8765 user@192.168.1.100
 
 ---
 
+## 3b. Hiển thị camera tại server
+
+Server nhận RTSP từ laptop — có 2 cách xem trực tiếp trên màn hình server.
+
+### Cách 1 — camera thô (`ffplay`)
+
+```bash
+export DISPLAY=:0
+ffplay -rtsp_transport tcp \
+  -window_title "SERVER - parking camera (RTSP from client)" \
+  -i rtsp://192.168.1.50:8554/parking
+```
+
+Nhấn `q` để thoát. Không cần GPU, không cần chạy app.
+
+### Cách 2 — app `smart_parking` (camera + YOLO + occupancy + minimap)
+
+Bật `ui.enabled: true` trong config và bật thêm layer `overlay` / `minimap`:
+
+```yaml
+ui:
+  enabled: true
+  panel_width: 280
+pipeline:
+  layers:
+    overlay: true
+    minimap: true
+```
+
+```bash
+export SMART_PARKING_CONFIG=configs/deploy/server.view.yaml
+export DISPLAY=:0
+python -m smart_parking --config configs/deploy/server.view.yaml
+```
+
+Cửa sổ `Smart Parking` = camera (bên trái) + panel số liệu occupancy (bên phải) +
+minimap 3D (góc trên trái) + khung YOLO.
+
+### Gộp bằng script
+
+```bash
+bash scripts/server_show_camera.sh          # ffplay
+bash scripts/server_show_camera.sh --app    # app + overlay
+bash scripts/server_show_camera.sh --both
+```
+
+Script tự lấy `source` trong config, kiểm tra stream bằng `ffprobe`, rồi mở cửa sổ.
+Nếu có `xdotool` hoặc `wmctrl` thì cửa sổ được đưa lên trước.
+
+> **Lưu ý (desktop Linux):** nếu cửa sổ `Smart Parking` bị che bởi cửa sổ khác
+> (terminal, trình duyệt…), dùng `xdotool search --name "Smart Parking" windowactivate`
+> hoặc `wmctrl -a "Smart Parking"` để đưa lên trước.
+>
+> Trên **GNOME/Mutter** chỉ restack (`windowactivate`) đôi khi chưa đủ — compositor
+> vẫn giữ texture cũ nên cửa sổ vẫn bị che. Khi đó dùng script kèm theo
+> (cần `pip install python-xlib`):
+>
+> ```bash
+> python scripts/raise_window.py "Smart Parking" --remap
+> ```
+
+---
+
 ## 4. Video có sẵn — cách thay thế (không RTSP)
 
 Khi chỉ cần chạy thử nhanh **trên server** (không bật laptop stream):
