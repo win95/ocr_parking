@@ -1,0 +1,15 @@
+# MediaMTX config — laptop client (publish webcam → RTSP)
+logLevel: info
+
+# Chỉ cần RTSP; tắt giao thức không dùng
+rtsp: yes
+rtmp: no
+hls: no
+webrtc: no
+srt: no
+
+rtspAddress: :8554
+
+# Path rỗng (không source) = sẵn sàng nhận stream publish từ ffmpeg
+paths:
+  parking: {}
