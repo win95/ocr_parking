@@ -7,17 +7,26 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MODE="${1:-webcam}"
 INPUT="${2:-/dev/video0}"
-ENV_FILE="${STREAM_ENV:-/etc/smart-parking/stream.env}"
+ENV_FILE="${STREAM_ENV:-$ROOT/configs/deploy/client.local.env}"
 [[ -f "$ENV_FILE" ]] && source "$ENV_FILE"
-
-if ! command -v mediamtx >/dev/null 2>&1; then
-  echo "Install MediaMTX first: sudo bash scripts/install_mediamtx_client.sh"
+MTX="${MEDIAMTX_BIN:-$ROOT/tools/mediamtx}"
+MTX_CONF="${MEDIAMTX_CONF:-$ROOT/configs/deploy/mediamtx-client.yml}"
+if [[ ! -x "$MTX" ]] && command -v mediamtx >/dev/null 2>&1; then
+  MTX=mediamtx
+fi
+if [[ ! -x "$MTX" ]]; then
+  echo "Chạy: bash scripts/client_prepare_local.sh"
   exit 1
 fi
 
-if ! pgrep -x mediamtx >/dev/null 2>&1; then
-  echo "Starting mediamtx in background..."
-  mediamtx >/var/log/smart-parking/mediamtx.log 2>&1 &
+if ! pgrep -f "$MTX" >/dev/null 2>&1; then
+  echo "Starting MediaMTX..."
+  mkdir -p "$ROOT/logs"
+  if [[ -f "$MTX_CONF" ]]; then
+    "$MTX" "$MTX_CONF" >"$ROOT/logs/mediamtx.log" 2>&1 &
+  else
+    "$MTX" >"$ROOT/logs/mediamtx.log" 2>&1 &
+  fi
   sleep 2
 fi
 
