@@ -1,6 +1,6 @@
 # Server GPU — hiển thị camera client lên màn hình server (UI + overlay + minimap)
 # Dùng cho demo: xem camera từ client trên server.
-source: rtsp://192.168.100.239:8554/parking
+source: rtsp://192.168.100.234:8554/parking
 slots_path: configs/slots/parking_lot_01.json
 
 ingest:
