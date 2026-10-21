@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import time
 from abc import ABC, abstractmethod
@@ -13,6 +14,40 @@ import numpy as np
 from smart_parking.types import FrameContext
 
 _WEBCAM_RE = re.compile(r"^webcam:(\d+)$")
+_RTSP_PREFIX = "rtsp://"
+_CAPTURE_OPTIONS_ENV = "OPENCV_FFMPEG_CAPTURE_OPTIONS"
+
+
+def _parse_capture_options(raw: str) -> dict[str, str]:
+    """Parse OPENCV_FFMPEG_CAPTURE_OPTIONS into a key/value mapping.
+
+    OpenCV hands this string to ``av_dict_parse_string(options, ";", "|", 0)``:
+    pairs are separated by ``|`` and each pair is ``key;value``.
+    """
+    options: dict[str, str] = {}
+    for pair in raw.split("|"):
+        pair = pair.strip()
+        if not pair:
+            continue
+        key, _, value = pair.partition(";")
+        options[key.strip()] = value.strip()
+    return options
+
+
+def _apply_capture_options(transport: str, timeout_ms: int) -> None:
+    """Pin FFmpeg capture options for RTSP (transport + connect timeout).
+
+    OpenCV reads OPENCV_FFMPEG_CAPTURE_OPTIONS when the FFmpeg backend opens
+    the capture, so this must be set before VideoCapture() is constructed.
+
+    The value must use FFmpeg's av_dict syntax (``key;value`` pairs joined by
+    ``|``) — a plain ``;``-separated list makes FFmpeg read everything after
+    the first separator as a single value and the capture fails to open.
+    """
+    options = _parse_capture_options(os.environ.get(_CAPTURE_OPTIONS_ENV, ""))
+    options["rtsp_transport"] = transport
+    options["timeout"] = str(int(timeout_ms) * 1000)
+    os.environ[_CAPTURE_OPTIONS_ENV] = "|".join(f"{k};{v}" for k, v in options.items())
 
 
 class FrameSource(ABC):
@@ -30,6 +65,11 @@ class FrameSource(ABC):
     def close(self) -> None:
         ...
 
+    @property
+    def is_live(self) -> bool:
+        """True for continuous sources (RTSP/webcam) that can be re-opened."""
+        return False
+
     def __enter__(self) -> FrameSource:
         self.open()
         return self
@@ -39,18 +79,36 @@ class FrameSource(ABC):
 
 
 class VideoSource(FrameSource):
-    """Read frames from a video file."""
+    """Read frames from a video file or an RTSP stream."""
 
-    def __init__(self, path: str) -> None:
+    def __init__(
+        self,
+        path: str,
+        rtsp_transport: str = "tcp",
+        connect_timeout_ms: int = 8000,
+    ) -> None:
         if ".." in Path(path).parts:
             raise ValueError("invalid video path")
         self._path = path
+        self._rtsp_transport = rtsp_transport
+        self._connect_timeout_ms = connect_timeout_ms
         self._cap: cv2.VideoCapture | None = None
         self._frame_id = 0
 
+    @property
+    def is_live(self) -> bool:
+        return self._path.startswith(_RTSP_PREFIX)
+
     def open(self) -> None:
-        cap = cv2.VideoCapture(self._path)
+        if self.is_live:
+            _apply_capture_options(self._rtsp_transport, self._connect_timeout_ms)
+            cap = cv2.VideoCapture(self._path, cv2.CAP_FFMPEG)
+        else:
+            cap = cv2.VideoCapture(self._path)
         if not cap.isOpened():
+            cap.release()
+            if self.is_live:
+                raise RuntimeError(f"cannot open stream: {self._path}")
             raise FileNotFoundError(f"cannot open video: {self._path}")
         self._cap = cap
 
@@ -82,6 +140,10 @@ class WebcamSource(FrameSource):
         self._cap: cv2.VideoCapture | None = None
         self._frame_id = 0
 
+    @property
+    def is_live(self) -> bool:
+        return True
+
     def open(self) -> None:
         cap = cv2.VideoCapture(self._index)
         if not cap.isOpened():
@@ -108,12 +170,26 @@ class WebcamSource(FrameSource):
             self._cap = None
 
 
-def parse_source(spec: str) -> FrameSource:
+def is_live_source(spec: str) -> bool:
+    """True when the spec points to a continuous source (RTSP/webcam)."""
+    spec = spec.strip()
+    return spec.startswith(_RTSP_PREFIX) or bool(_WEBCAM_RE.match(spec))
+
+
+def parse_source(
+    spec: str,
+    rtsp_transport: str = "tcp",
+    connect_timeout_ms: int = 8000,
+) -> FrameSource:
     """Parse source string into a FrameSource."""
     spec = spec.strip()
     match = _WEBCAM_RE.match(spec)
     if match:
         return WebcamSource(int(match.group(1)))
-    if spec.startswith("rtsp://"):
-        return VideoSource(spec)
+    if spec.startswith(_RTSP_PREFIX):
+        return VideoSource(
+            spec,
+            rtsp_transport=rtsp_transport,
+            connect_timeout_ms=connect_timeout_ms,
+        )
     return VideoSource(spec)

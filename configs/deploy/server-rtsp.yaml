@@ -3,6 +3,13 @@
 source: rtsp://LAPTOP_IP:8554/parking
 slots_path: configs/slots/parking_lot_01.json
 
+ingest:
+  rtsp_transport: tcp
+  connect_timeout_ms: 8000
+  reconnect: true
+  reconnect_delay_seconds: 3.0
+  max_reconnects: null
+
 pipeline:
   mode: normal
   camera_id: laptop-rtsp-01

@@ -76,6 +76,16 @@ class OccupancyConfig(BaseModel):
     stale_after_ms: float = 60_000.0
 
 
+class IngestConfig(BaseModel):
+    """Video ingest settings (RTSP transport, reconnect policy)."""
+
+    rtsp_transport: Literal["tcp", "udp"] = "tcp"
+    connect_timeout_ms: int = 8000
+    reconnect: bool = True
+    reconnect_delay_seconds: float = 3.0
+    max_reconnects: int | None = None
+
+
 class InspectorConfig(BaseModel):
     enabled: bool = False
     host: str = "127.0.0.1"
@@ -112,6 +122,7 @@ class AnalyticsConfig(BaseModel):
 class AppConfig(BaseModel):
     source: str = "data/sample.mp4"
     slots_path: str = "configs/slots/parking_lot_01.json"
+    ingest: IngestConfig = Field(default_factory=IngestConfig)
     detection: DetectionConfig = Field(default_factory=DetectionConfig)
     yolo: YoloConfig | None = None
     detr: DetrConfig = Field(default_factory=DetrConfig)

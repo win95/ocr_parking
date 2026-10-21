@@ -1,7 +1,14 @@
 # Kịch bản B: server GPU — nguồn RTSP từ client
 # Đổi CLIENT_IP và path stream
-source: rtsp://192.168.100.234:8554/parking
+source: rtsp://192.168.100.239:8554/parking
 slots_path: configs/slots/parking_lot_01.json
+
+ingest:
+  rtsp_transport: tcp
+  connect_timeout_ms: 8000
+  reconnect: true
+  reconnect_delay_seconds: 3.0
+  max_reconnects: null
 
 pipeline:
   mode: normal

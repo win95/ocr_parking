@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from smart_parking.config import FusionConfig
 from smart_parking.contracts import BBox, DetectionBatch, DetectionContract
 from smart_parking.detection.fusion import count_disagreements, fuse_frame
