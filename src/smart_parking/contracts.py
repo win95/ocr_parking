@@ -123,3 +123,43 @@ class PipelineMetrics(BaseModel):
     ram_mb: float | None = None
     gpu_util: float | None = None
     vram_mb: float | None = None
+
+
+class HealthStatus(str, Enum):
+    """Coarse component health for operations."""
+
+    HEALTHY = "HEALTHY"
+    DEGRADED = "DEGRADED"
+    UNHEALTHY = "UNHEALTHY"
+
+
+class IngestState(str, Enum):
+    """Ingest lifecycle (server-side RTSP/file reader)."""
+
+    IDLE = "IDLE"
+    CONNECTING = "CONNECTING"
+    PUBLISHING = "PUBLISHING"
+    STREAM_AVAILABLE = "STREAM_AVAILABLE"
+    FRAME_RECEIVED = "FRAME_RECEIVED"
+    PIPELINE_PROCESSING = "PIPELINE_PROCESSING"
+    STALE = "STALE"
+    ERROR = "ERROR"
+
+
+class IngestStatusContract(BaseModel):
+    """Expose ingest health to Inspector / API consumers."""
+
+    schema_version: str = SCHEMA_VERSION
+    state: IngestState = IngestState.IDLE
+    effective_state: IngestState = IngestState.IDLE
+    source: str = ""
+    publishing_observable: bool = False
+    last_frame_at_ms: float | None = None
+    frame_age_ms: float | None = None
+    last_pipeline_at_ms: float | None = None
+    reconnect_count: int = 0
+    frames_received: int = 0
+    frames_processed: int = 0
+    last_error: str | None = None
+    stream_opened_at_ms: float | None = None
+    stale_threshold_ms: float = 5000.0

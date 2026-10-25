@@ -16,6 +16,7 @@ from smart_parking.occupancy.engine import OccupancyEngine
 from smart_parking.occupancy.slots import load_slots
 from smart_parking.pipeline.coasting import apply_track_coasting_to_slots
 from smart_parking.pipeline.context import PipelineFrame
+from smart_parking.pipeline.gpu_stats import read_gpu_utilization
 from smart_parking.pipeline.observability import INSPECTOR_STORE
 from smart_parking.pipeline.stages.base import PipelineStage
 from smart_parking.tracking.mot import SimpleTracker
@@ -118,6 +119,10 @@ class ModularPipeline:
             t = stage.run(frame)
             timings.append(t)
             INSPECTOR_STORE.set_layer(stage.name, stage.health(t))
+            if stage.enabled and stage.name in ("yolo", "detr"):
+                INSPECTOR_STORE.record_model_inference(
+                    frame.timestamp_ms, t.ok, t.error
+                )
             if stage.enabled and not t.ok:
                 stage_failed = True
 
@@ -139,19 +144,28 @@ class ModularPipeline:
             )
         if self._cfg.pipeline.layers.occupancy and not frame.extra.get("pipeline_halted"):
             t0 = time.perf_counter()
-            self._occupancy.update(frame, frame.detections)
-            if self._cfg.pipeline.layers.tracking:
-                apply_track_coasting_to_slots(
-                    self._slots, frame.slot_states, frame.tracks
-                )
+            occ_ok = True
+            occ_err: str | None = None
+            try:
+                self._occupancy.update(frame, frame.detections)
+                if self._cfg.pipeline.layers.tracking:
+                    apply_track_coasting_to_slots(
+                        self._slots, frame.slot_states, frame.tracks
+                    )
+            except Exception as exc:
+                occ_ok = False
+                occ_err = str(exc)
+            INSPECTOR_STORE.record_occupancy_update(
+                frame.timestamp_ms, occ_ok, occ_err
+            )
             timings.append(
                 self._timing(
                     "occupancy",
                     t0,
                     len(frame.detections),
                     len(frame.slot_states),
-                    True,
-                    None,
+                    occ_ok,
+                    occ_err,
                 )
             )
         if self._cfg.pipeline.layers.overlay:
@@ -164,6 +178,7 @@ class ModularPipeline:
             frame.minimap_image = render_minimap(self._slots, frame.slot_states)
             timings.append(self._timing("minimap", t0, 1, 1, True, None))
 
+        gpu_util, vram_mb = read_gpu_utilization()
         metrics = PipelineMetrics(
             correlation_id=frame.correlation_id,
             camera_id=frame.camera_id,
@@ -173,6 +188,8 @@ class ModularPipeline:
             dropped_frames=self._dropped,
             stages=timings,
             ram_mb=psutil.Process().memory_info().rss / (1024 * 1024),
+            gpu_util=gpu_util,
+            vram_mb=vram_mb,
         )
         frame.metrics = metrics
         INSPECTOR_STORE.update_metrics(metrics)

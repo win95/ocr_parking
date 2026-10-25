@@ -8,6 +8,7 @@ import numpy as np
 
 from smart_parking import app as app_module
 from smart_parking.config import AppConfig
+from smart_parking.pipeline.observability import INSPECTOR_STORE
 from smart_parking.types import FrameContext
 
 
@@ -38,6 +39,12 @@ class FakeSource:
 
     def close(self) -> None:
         self.closed = True
+
+    @property
+    def last_read_error(self) -> str | None:
+        if self._frames <= 0:
+            return "end of test stream"
+        return None
 
 
 class StubPipeline:
@@ -88,10 +95,13 @@ def test_reconnects_until_limit(monkeypatch) -> None:
     opened = _patch(monkeypatch, sources)
     cfg = _config(reconnect=True, reconnect_delay_seconds=0.01, max_reconnects=2)
 
+    INSPECTOR_STORE.configure_ingest(cfg.source, cfg.ingest.stale_frame_ms)
     app_module.run_app(cfg)
 
     assert len(opened) == 3  # initial + 2 reconnects
     assert all(src.closed for src in opened)
+    assert INSPECTOR_STORE.snapshot.ingest.reconnect_count == 2
+    assert INSPECTOR_STORE.snapshot.ingest.frames_processed >= 2
 
 
 def test_stops_when_reconnect_disabled(monkeypatch) -> None:
@@ -99,6 +109,7 @@ def test_stops_when_reconnect_disabled(monkeypatch) -> None:
     opened = _patch(monkeypatch, sources)
     cfg = _config(reconnect=False)
 
+    INSPECTOR_STORE.configure_ingest(cfg.source, cfg.ingest.stale_frame_ms)
     app_module.run_app(cfg)
 
     assert len(opened) == 1
@@ -116,6 +127,7 @@ def test_file_source_does_not_reconnect(monkeypatch) -> None:
     opened = _patch(monkeypatch, sources)
     cfg = _config(reconnect=True, reconnect_delay_seconds=0.01)
 
+    INSPECTOR_STORE.configure_ingest(cfg.source, cfg.ingest.stale_frame_ms)
     app_module.run_app(cfg)
 
     assert len(opened) == 1
@@ -134,4 +146,5 @@ def test_survives_open_failure(monkeypatch) -> None:
     monkeypatch.setattr(app_module, "load_slots", lambda _p: ["slot-1"])
     cfg = _config(reconnect=True, reconnect_delay_seconds=0.01, max_reconnects=1)
 
+    INSPECTOR_STORE.configure_ingest(cfg.source, cfg.ingest.stale_frame_ms)
     app_module.run_app(cfg)

@@ -12,6 +12,16 @@ from smart_parking.analytics import DEFAULT_WIDGETS, KPIEngine
 from smart_parking.config import AppConfig
 from smart_parking.ingest import FrameLoop, is_live_source, parse_source
 from smart_parking.ingest.sources import FrameSource
+from smart_parking.ingest.telemetry import (
+    configure_ingest,
+    mark_connecting,
+    mark_frame_received,
+    mark_ingest_error,
+    mark_pipeline_processed,
+    mark_stream_available,
+    read_error_from_source,
+    set_reconnect_count,
+)
 from smart_parking.occupancy import load_slots
 from smart_parking.pipeline.context import PipelineFrame
 from smart_parking.pipeline.observability import new_correlation_id
@@ -66,6 +76,7 @@ def _consume_frames(
 
     window = "Smart Parking"
     for raw in loop:
+        mark_frame_received(raw.timestamp_ms)
         pf = PipelineFrame(
             camera_id=cfg.pipeline.camera_id,
             frame_id=raw.frame_id,
@@ -75,6 +86,7 @@ def _consume_frames(
         )
         pf.fps = fps_state["fps"]
         pf = pipeline.process(pf)
+        mark_pipeline_processed(pf.timestamp_ms, pf.frame_id)
         legacy_states = {
             sid: SlotState(
                 slot_id=sid,
@@ -129,6 +141,12 @@ def run_app(cfg: AppConfig) -> None:
         else None
     )
     _start_inspector(cfg)
+    configure_ingest(
+        cfg.source,
+        cfg.ingest.stale_frame_ms,
+        source_id=cfg.pipeline.camera_id,
+    )
+    set_reconnect_count(0)
 
     fps_state = {"fps": 0.0, "t_prev": time.perf_counter()}
     live = is_live_source(cfg.source)
@@ -138,10 +156,16 @@ def run_app(cfg: AppConfig) -> None:
         while True:
             source: FrameSource | None = None
             try:
+                mark_connecting()
                 source = _open_source(cfg)
+                mark_stream_available()
                 live = source.is_live
                 _consume_frames(cfg, source, pipeline, kpi, artifacts, fps_state)
-            except Exception:
+                read_err = read_error_from_source(source)
+                if read_err:
+                    mark_ingest_error(read_err)
+            except Exception as exc:
+                mark_ingest_error(str(exc))
                 _log.exception("Error while reading source %s", cfg.source)
             finally:
                 if source is not None:
@@ -149,13 +173,15 @@ def run_app(cfg: AppConfig) -> None:
 
             if not (live and cfg.ingest.reconnect):
                 break
-            reconnects += 1
+            next_reconnect = reconnects + 1
             if (
                 cfg.ingest.max_reconnects is not None
-                and reconnects > cfg.ingest.max_reconnects
+                and next_reconnect > cfg.ingest.max_reconnects
             ):
                 _log.error("Reconnect limit reached (%s), stopping", cfg.ingest.max_reconnects)
                 break
+            reconnects = next_reconnect
+            set_reconnect_count(reconnects)
             _log.warning(
                 "Source %s ended, reconnecting in %.1fs (attempt %s)",
                 cfg.source,
