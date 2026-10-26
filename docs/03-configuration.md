@@ -20,6 +20,12 @@ Mặc định: `configs/default.yaml` hoặc biến môi trường `SMART_PARKIN
 | `detection.confidence` | float | 0.35 | Ngưỡng score |
 | `detection.imgsz` | int | 640 | Kích thước input |
 | `detection.device` | str | `0` | CUDA hoặc `cpu` |
+| `detr.model_id` | str | `facebook/detr-resnet-50-dc5` | HF model id cho DETR |
+| `detr.device` | str | `cpu` | CUDA (`0`) hoặc `cpu` |
+| `detr.confidence` | float | 0.5 | Ngưỡng score DETR |
+| `detr.vehicle_only` | bool | true | Chỉ giữ car / bus / truck |
+| `detr.size` | int | 800 | Shortest edge; 384 giữ realtime |
+| `fusion.strategy` | str | `yolo_only` | yolo_only / detr_only / union / weighted_nms |
 | `smoothing.window` | int | 15 | Cửa sổ bỏ phiếu |
 | `smoothing.t_on` / `t_off` | int | 10 / 12 | Hysteresis |
 | `tracking.coast_frames` | int | 8 | Coast tối đa |

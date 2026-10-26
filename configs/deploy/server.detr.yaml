@@ -1,0 +1,66 @@
+# Server GPU — DETR (facebook/detr-resnet-50-dc5) làm model phát hiện chính
+# Dùng cho demo: DETR thay YOLO. YOLO tắt để giữ realtime (~17 FPS trên GTX 1080).
+# Muốn chạy song song cả hai: bật yolo: true + fusion: true, strategy: union.
+source: rtsp://192.168.100.234:8554/parking
+slots_path: configs/slots/parking_lot_01.json
+
+ingest:
+  rtsp_transport: tcp
+  connect_timeout_ms: 8000
+  reconnect: true
+  reconnect_delay_seconds: 3.0
+  max_reconnects: null
+
+pipeline:
+  mode: normal
+  camera_id: remote-parking-01
+  queue_max: 1
+  drop_frames_in_realtime: true
+  stop_on_stage_error: true
+  layers:
+    detr: true
+    yolo: false
+    fusion: false
+    tracking: true
+    occupancy: true
+    overlay: true
+    minimap: true
+
+# Giữ nguyên khối detection để các stage khác (occupancy/overlay) vẫn có cấu hình.
+detection:
+  backend: pytorch
+  model_path: models/yolo11n.pt
+  device: "0"
+  imgsz: 640
+  confidence: 0.35
+
+detr:
+  model_id: facebook/detr-resnet-50-dc5
+  device: "0"
+  confidence: 0.5
+  vehicle_only: true
+  # Đo trên GTX 1080 với frame 1280x720: size 800 = 360 ms, 480 = 78 ms,
+  # 384 = 49 ms (20 FPS), 320 = 38 ms. 384 giữ realtime cho stream 10 fps.
+  size: 384
+
+fusion:
+  strategy: detr_only
+  iou_threshold: 0.5
+
+ui:
+  enabled: true
+  panel_width: 280
+
+inspector:
+  enabled: true
+  host: 127.0.0.1
+  port: 8768
+
+artifacts:
+  enabled: true
+  directory: logs/artifacts_detr
+  max_frames: 200
+  sample_every_n: 15
+
+analytics:
+  log_path: logs/events_detr.jsonl

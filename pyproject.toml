@@ -21,7 +21,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=7.4"]
 roboflow = ["roboflow>=1.1"]
-detr = ["transformers>=4.40", "torch"]
+detr = ["transformers>=4.40", "timm>=0.9", "torch"]
 inspector = ["fastapi>=0.110", "uvicorn>=0.27"]
 desktop = ["python-xlib>=0.33"]
 

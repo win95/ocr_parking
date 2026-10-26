@@ -32,6 +32,10 @@ class DetrConfig(BaseModel):
     confidence: float = 0.5
     device: str = "cpu"
     vehicle_only: bool = True
+    # Shortest edge fed to the DETR image processor. 800 is the paper default
+    # (accurate, slow); 480 cuts latency ~4x on dc5 and keeps realtime on
+    # mid-range GPUs. The longest edge is derived as size * 1.66.
+    size: int = 800
 
 
 class FusionConfig(BaseModel):
