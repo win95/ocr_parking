@@ -31,6 +31,13 @@ python scripts/calibrate_slots.py --image path/to/ref.jpg --out configs/slots/pa
 - `s`: lưu  
 - `q`: thoát  
 
+## Trạng thái dữ liệu
+
+`configs/slots/parking_lot_01.json` hiện **rỗng** (`zones: []`,
+`meta.source: "awaiting_calibration"`) — chờ frame thật từ camera bãi xe.
+Hệ thống chạy bình thường với 0 ô đỗ: overlay không vẽ polygon, minimap
+trắng, KPI = 0/0, health vẫn HEALTHY.
+
 ## Checklist review
 
 - [x] Schema đã định nghĩa
