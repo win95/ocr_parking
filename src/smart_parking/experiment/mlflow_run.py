@@ -30,7 +30,7 @@ class DatasetRef:
     uri: str | None = None
 
 
-class ExperimentRun(AbstractContextManager["ExperimentRun"]):
+class ExperimentRun(AbstractContextManager):
     """Context manager: one MLflow run per benchmark or training job."""
 
     def __init__(
