@@ -23,6 +23,7 @@ dev = ["pytest>=7.4"]
 roboflow = ["roboflow>=1.1"]
 detr = ["transformers>=4.40", "torch"]
 inspector = ["fastapi>=0.110", "uvicorn>=0.27"]
+mlflow = ["mlflow>=2.14"]
 desktop = ["python-xlib>=0.33"]
 
 [project.scripts]

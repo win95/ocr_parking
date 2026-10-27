@@ -116,8 +116,23 @@ class UiConfig(BaseModel):
     panel_width: int = 280
 
 
+class AlertsConfig(BaseModel):
+    """Experimental alerts — JSONL log only (phase 1)."""
+
+    enabled: bool = False
+    log_path: str = "logs/alerts.jsonl"
+    cooldown_seconds: float = 30.0
+    on_ingest_degraded: bool = True
+    on_ingest_unhealthy: bool = True
+    on_model_unhealthy: bool = True
+    on_slot_stale: bool = True
+    utilization_pct_threshold: float | None = None
+    save_frame_dir: str | None = None
+
+
 class AnalyticsConfig(BaseModel):
     log_path: str = "logs/events.jsonl"
+    alerts: AlertsConfig = Field(default_factory=AlertsConfig)
 
 
 class AppConfig(BaseModel):

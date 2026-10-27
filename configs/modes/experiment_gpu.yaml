@@ -1,0 +1,57 @@
+# Server GPU — MLflow eval + debug frames + alert log (không gửi notify)
+source: data/sample.mp4
+slots_path: configs/slots/parking_lot_01.json
+
+pipeline:
+  mode: debug
+  camera_id: parking_cam_01
+  queue_max: 1
+  layers:
+    detr: false
+    yolo: true
+    fusion: false
+    tracking: true
+    occupancy: true
+    overlay: true
+    minimap: true
+
+detection:
+  backend: pytorch
+  model_path: models/yolo11n.pt
+  confidence: 0.35
+  imgsz: 640
+  device: "0"
+
+artifacts:
+  enabled: true
+  directory: logs/artifacts_eval
+  max_frames: 100
+  sample_every_n: 10
+
+analytics:
+  log_path: logs/events_eval.jsonl
+  alerts:
+    enabled: true
+    log_path: logs/alerts_eval.jsonl
+    cooldown_seconds: 15.0
+    on_ingest_degraded: true
+    on_ingest_unhealthy: true
+    on_model_unhealthy: true
+    on_slot_stale: true
+    utilization_pct_threshold: 90.0
+    save_frame_dir: logs/alert_frames
+
+inspector:
+  enabled: true
+  host: 127.0.0.1
+  port: 8765
+
+ui:
+  enabled: true
+  panel_width: 300
+
+ingest:
+  stale_frame_ms: 5000.0
+
+occupancy:
+  stale_after_ms: 30000

@@ -12,6 +12,16 @@ yolo train data=dataset.yaml model=yolo11s.pt epochs=100 imgsz=640 device=0
 
 Helper: `scripts/roboflow_train.py`
 
+MLflow (một run / lần train):
+
+```bash
+pip install -e ".[mlflow]"
+python scripts/roboflow_train.py --workspace WS --project parking --version 3 \
+  --model yolo11s.pt --config configs/default.yaml --mlflow
+```
+
+Ghi: `data.yaml`, tags `dataset` / `dataset_version`, `model_version`, optional pipeline YAML.
+
 ## Checklist review
 
 - [x] Không commit secret
