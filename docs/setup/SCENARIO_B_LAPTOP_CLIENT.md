@@ -101,24 +101,23 @@ Cùng URL RTSP: `rtsp://<LAPTOP_IP>:8554/parking` — server **không phân bi�
 
 ## 3. Server GPU — cài và chạy
 
-```bash
-cd /opt/smart-parking   # hoặc clone OCR
-bash scripts/setup_server.sh
-source .venv/bin/activate
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
-pip install -e ".[inspector]"
-python scripts/verify_gpu_ready.py
-```
-
-Tạo config local từ template:
+Một lệnh cài toàn bộ (apt + venv + PyTorch CUDA + smart-parking + kiểm tra GPU):
 
 ```bash
-cp configs/deploy/server-rtsp.yaml configs/deploy/server.local.yaml
-# Sửa source: rtsp://192.168.1.50:8554/parking
-# Sửa slots_path nếu đã calibrate site
+cd /opt/smart-parking   # hoặc thư mục clone repo
+bash scripts/setup_server.sh --rtsp rtsp://192.168.1.50:8554/parking
 ```
 
-Kiểm tra kết nối RTSP **trước** khi chạy app:
+Script tạo `configs/deploy/server.local.yaml` (đã gitignore) từ
+`configs/deploy/server.detr.yaml` và ghi `source:` theo `--rtsp`.
+Các tuỳ chọn hay dùng:
+
+```bash
+bash scripts/setup_server.sh --check                # chỉ kiểm tra môi trường
+bash scripts/setup_server.sh --systemd --start -y   # tự chạy + tự restart khi crash
+```
+
+Kiểm tra kết nối RTSP **trước** khi chạy app (script đã thử, đây là kiểm tra tay):
 
 ```bash
 ffprobe -rtsp_transport tcp rtsp://192.168.1.50:8554/parking
@@ -127,8 +126,8 @@ ffprobe -rtsp_transport tcp rtsp://192.168.1.50:8554/parking
 Chạy pipeline:
 
 ```bash
-export SMART_PARKING_CONFIG=configs/deploy/server.local.yaml
-python -m smart_parking
+python -m smart_parking --config configs/deploy/server.local.yaml
+# hoặc dùng file demo có sẵn: configs/deploy/server.detr.yaml
 ```
 
 Inspector (trên server):
@@ -223,9 +222,8 @@ scp data/parking_demo.mp4 user@192.168.1.100:/opt/smart-parking/data/
 2. Trên server:
 
 ```bash
-cp configs/deploy/server-file-local.yaml configs/deploy/server.local.yaml
 # source: data/parking_demo.mp4
-python -m smart_parking --config configs/deploy/server.local.yaml
+python -m smart_parking --config configs/deploy/server-file-local.yaml
 ```
 
 | Cách | Laptop | Server `source` |
@@ -254,7 +252,7 @@ bash scripts/client_laptop_start.sh video /path/to/demo.mp4
 | 1 | `mediamtx` chạy | `nvidia-smi` OK |
 | 2 | `ffprobe` local RTSP OK | `ffprobe` tới laptop OK |
 | 3 | Firewall 8554 | `verify_gpu_ready.py` OK |
-| 4 | Ghi IP + resolution | `server.local.yaml` đúng `source` |
+| 4 | Ghi IP + resolution | `server.detr.yaml` (hoặc `server.local.yaml` do script tạo) đúng `source` |
 | 5 | Stream ổn định 1 phút | App chạy, `logs/events.jsonl` có dòng |
 
 ---
