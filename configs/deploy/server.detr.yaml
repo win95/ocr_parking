@@ -1,6 +1,7 @@
-# Server GPU — DETR (facebook/detr-resnet-50-dc5) làm model phát hiện chính
-# Dùng cho demo: DETR thay YOLO. YOLO tắt để giữ realtime (~17 FPS trên GTX 1080).
-# Muốn chạy song song cả hai: bật yolo: true + fusion: true, strategy: union.
+# Server GPU — DETR (facebook/detr-resnet-50-dc5) + YOLO11n chạy song song
+# Dùng cho demo: cả hai model cùng chạy, fusion 'union' gộp kết quả.
+# Tắt bớt 1 model nếu cần thêm FPS: yolo: false (thuần DETR) hoặc detr: false
+# + fusion: false (thuần YOLO, nhanh nhất).
 source: rtsp://192.168.100.234:8554/parking
 slots_path: configs/slots/parking_lot_01.json
 
@@ -19,8 +20,8 @@ pipeline:
   stop_on_stage_error: true
   layers:
     detr: true
-    yolo: false
-    fusion: false
+    yolo: true
+    fusion: true
     tracking: true
     occupancy: true
     overlay: true
@@ -44,8 +45,10 @@ detr:
   size: 384
 
 fusion:
-  strategy: detr_only
+  strategy: union
   iou_threshold: 0.5
+  detr_weight: 0.45
+  yolo_weight: 0.55
 
 ui:
   enabled: true

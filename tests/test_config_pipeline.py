@@ -14,8 +14,9 @@ from smart_parking.detection.detr_r50 import torch_device
 def test_detr_deploy_config() -> None:
     cfg = load_config("configs/deploy/server.detr.yaml")
     assert cfg.pipeline.layers.detr is True
-    assert cfg.pipeline.layers.yolo is False
-    assert cfg.fusion.strategy == "detr_only"
+    assert cfg.pipeline.layers.yolo is True
+    assert cfg.pipeline.layers.fusion is True
+    assert cfg.fusion.strategy == "union"
     assert cfg.detr.model_id == "facebook/detr-resnet-50-dc5"
     assert cfg.detr.size == 384
 

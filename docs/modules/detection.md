@@ -26,14 +26,14 @@ transformers. Cài đặt:
 pip install -e ".[detr]"     # transformers + timm
 ```
 
-Bật trong config:
+Bật trong config (chạy song song với YOLO):
 
 ```yaml
 pipeline:
   layers:
     detr: true
-    yolo: false
-    fusion: false
+    yolo: true
+    fusion: true
 detr:
   model_id: facebook/detr-resnet-50-dc5
   device: "0"
@@ -41,12 +41,24 @@ detr:
   vehicle_only: true
   size: 384
 fusion:
-  strategy: detr_only
+  strategy: union          # gộp DETR + YOLO rồi NMS
+  iou_threshold: 0.5
 ```
 
 Config sẵn dùng: `configs/deploy/server.detr.yaml` (inspector 8768).
-Muốn chạy song song YOLO để so sánh: `layers.yolo: true` + `layers.fusion: true`
-+ `fusion.strategy: union`.
+
+Các chế độ khác:
+
+| Mục đích | Cấu hình |
+|----------|----------|
+| Chỉ DETR (nhẹ GPU nhất cho DETR) | `yolo: false`, `fusion: false`, `strategy: detr_only` |
+| Chỉ YOLO (nhanh nhất) | `detr: false`, `fusion: false`, `strategy: yolo_only` |
+| Ưu tiên theo confidence | `strategy: weighted_nms` + `detr_weight` / `yolo_weight` |
+
+`fusion` bắt buộc cả `detr` và `yolo` cùng bật (validator trong `config.py`).
+Lưu ý `_nms` của fusion là class-agnostic: box chồng nhau giữa hai model sẽ
+triệt tiêu nhau bất kể class, nên hai model chỉ nên trả về cùng nhóm lớp
+(ở đây là xe).
 
 Đo trên GTX 1080, frame 1280x720 (gồm cả tiền/hậu xử lý):
 

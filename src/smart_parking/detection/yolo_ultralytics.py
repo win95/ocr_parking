@@ -8,6 +8,15 @@ from smart_parking.config import DetectionConfig
 from smart_parking.types import Detection
 
 
+def vehicle_allowed(name: str, allowed: set[str]) -> bool:
+    """Keep a detection when its class is an allowed vehicle class.
+
+    An empty allow-list means "keep every class", which is how a scene with
+    pedestrians or other objects can be inspected.
+    """
+    return not allowed or name.lower() in allowed
+
+
 class YoloDetector:
     """YOLO backend using Ultralytics."""
 
@@ -16,6 +25,7 @@ class YoloDetector:
 
         self._cfg = cfg
         self._model = YOLO(cfg.model_path)
+        self._vehicles = {c.lower() for c in (cfg.vehicle_classes or [])}
 
     def detect(self, image: np.ndarray) -> list[Detection]:
         results = self._model.predict(
@@ -37,6 +47,8 @@ class YoloDetector:
             cls_id = int(box.cls[0])
             conf = float(box.conf[0])
             name = str(names.get(cls_id, cls_id))
+            if not vehicle_allowed(name, self._vehicles):
+                continue
             out.append(
                 Detection(
                     bbox_xyxy=(xyxy[0], xyxy[1], xyxy[2], xyxy[3]),
