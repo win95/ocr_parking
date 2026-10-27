@@ -35,9 +35,30 @@ flowchart LR
 |------|--------|---------|
 | 8554/TCP | Laptop → LAN | RTSP (MediaMTX) |
 | 8765/TCP | Server (local/VPN) | Pipeline Inspector |
+| 8767/TCP | Server (LAN) | Inspector — config hiển thị camera |
+| 8768/TCP | Server (LAN) | Inspector — config DETR |
 | 22/TCP | Quản trị | SSH |
 
 RTSP chỉ trong VLAN. Inspector remote qua SSH tunnel.
+
+### Mở Inspector ra LAN
+
+Mặc định `inspector.host: 127.0.0.1` (chỉ máy server). Các config
+`configs/deploy/server*.yaml` đã đặt `0.0.0.0` để máy khác trong LAN
+mở dashboard được:
+
+```bash
+# trên server (192.168.100.239)
+python -m smart_parking --config configs/deploy/server.detr.yaml
+
+# từ máy khác trong LAN
+xdg-open http://192.168.100.239:8768/       # dashboard
+curl http://192.168.100.239:8768/api/metrics
+```
+
+Lưu ý: Inspector **không có xác thực** — chỉ mở trong LAN tin cậy, không
+port-forward ra Internet. Muốn thu hẹp lại thì đổi `host` về `127.0.0.1`
+và dùng SSH tunnel: `ssh -L 8768:127.0.0.1:8768 ubuntu@192.168.100.239`.
 
 ---
 
