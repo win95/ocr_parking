@@ -37,7 +37,7 @@ Ingest → PipelineFrame → [DETR] [YOLO] → Fusion? → Tracking → Occupanc
 - `configs/modes/debug.yaml` — artifact + inspector + minimap
 - `configs/modes/benchmark.yaml` — không UI
 - `configs/modes/dual_model.yaml` — DETR + YOLO + fusion (`pip install -e ".[detr]"`)
-- `configs/deploy/server-rtsp.yaml` — server kéo RTSP từ laptop
+- `configs/deploy/server.detr.yaml` — server kéo RTSP từ laptop (DETR + YOLO)
 
 ## Giao diện web
 

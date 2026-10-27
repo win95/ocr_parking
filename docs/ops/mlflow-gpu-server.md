@@ -13,7 +13,7 @@ python scripts/verify_gpu_ready.py
 |----------|---------|
 | GPU + driver | `nvidia-smi` |
 | Model weights | `models/*.pt` hoặc `yolo11n.pt` |
-| Video / RTSP | `data/*.mp4` hoặc `configs/deploy/server-rtsp.yaml` |
+| Video / RTSP | `data/*.mp4` hoặc `configs/deploy/server.detr.yaml` |
 | Slots | `configs/slots/parking_lot_01.json` khớp resolution stream |
 | MLflow | `MLFLOW_TRACKING_URI=./mlruns` (hoặc server nội bộ) |
 | Thư mục log | `mkdir -p logs mlruns` |

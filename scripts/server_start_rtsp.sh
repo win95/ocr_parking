@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Server — chạy app với config RTSP (sau khi sửa server.local.yaml)
+# Server — chạy app với config RTSP (mặc định server.detr.yaml)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-CFG="${SMART_PARKING_CONFIG:-configs/deploy/server.local.yaml}"
+CFG="${SMART_PARKING_CONFIG:-configs/deploy/server.detr.yaml}"
 
 if [[ ! -f "$CFG" ]]; then
-  echo "Create $CFG from configs/deploy/server-rtsp.yaml and set LAPTOP_IP"
+  echo "Không thấy $CFG — tạo bằng: bash scripts/setup_server.sh --rtsp rtsp://<LAPTOP_IP>:8554/parking"
   exit 1
 fi
 
-if grep -q LAPTOP_IP "$CFG"; then
-  echo "Replace LAPTOP_IP in $CFG with laptop LAN address"
+if grep -qE "LAPTOP_IP|CLIENT_IP" "$CFG"; then
+  echo "Sửa source trong $CFG thành IP LAN của laptop (hoặc dùng --rtsp khi setup)"
   exit 1
 fi
 

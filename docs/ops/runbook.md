@@ -8,7 +8,7 @@
 source .venv/bin/activate
 python -m smart_parking --config configs/default.yaml
 python -m smart_parking --config configs/default.yaml --source webcam:0
-python -m smart_parking --config configs/deploy/server.local.yaml
+python -m smart_parking --config configs/deploy/server.detr.yaml
 python -m smart_parking --config configs/default.yaml --backend tensorrt
 ```
 

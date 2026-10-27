@@ -14,4 +14,5 @@ tools/mediamtx
 tools/bin/
 tools/*.tgz
 configs/deploy/client.local.env
+configs/deploy/*.local.yaml
 *.egg-info/

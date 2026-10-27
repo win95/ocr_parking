@@ -86,7 +86,7 @@ Xem [SCENARIO_B_LAPTOP_CLIENT.md](SCENARIO_B_LAPTOP_CLIENT.md).
 Tóm tắt:
 
 **Laptop:** `bash scripts/client_laptop_start.sh webcam` hoặc `video /path/demo.mp4`  
-**Server:** `configs/deploy/server-rtsp.yaml` → `server.local.yaml` + `bash scripts/server_start_rtsp.sh`
+**Server:** `configs/deploy/server.detr.yaml` (DETR + YOLO) + `bash scripts/server_start_rtsp.sh`
 
 ---
 
