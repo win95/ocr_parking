@@ -146,6 +146,17 @@ def _ingest_status(
     return HealthStatus.HEALTHY
 
 
+def _lag_grace_ms(ingest: Any) -> float:
+    """Allow normal frame-to-frame lag before calling a stage stale.
+
+    A live stream keeps delivering frames while the pipeline is still working
+    on the previous one, so the newest frame is almost always a little newer
+    than the last inference. Anything under the ingest staleness threshold is
+    normal operation, not degradation.
+    """
+    return float(getattr(ingest, "stale_threshold_ms", 5000.0))
+
+
 def _model_status(
     model: ModelHealthSnapshot,
     ingest: Any,
@@ -157,7 +168,7 @@ def _model_status(
         return HealthStatus.DEGRADED
     if model.last_inference_at_ms is None:
         return HealthStatus.DEGRADED
-    if model.last_inference_at_ms < ingest.last_frame_at_ms - 1.0:
+    if model.last_inference_at_ms < ingest.last_frame_at_ms - _lag_grace_ms(ingest):
         return HealthStatus.DEGRADED
     return HealthStatus.HEALTHY
 
@@ -174,6 +185,10 @@ def _occupancy_status(
         return HealthStatus.DEGRADED
     if occ.last_update_at_ms is None:
         return HealthStatus.DEGRADED
-    if model.last_inference_at_ms and occ.last_update_at_ms < model.last_inference_at_ms - 1.0:
+    if (
+        model.last_inference_at_ms
+        and occ.last_update_at_ms
+        < model.last_inference_at_ms - _lag_grace_ms(ingest)
+    ):
         return HealthStatus.DEGRADED
     return HealthStatus.HEALTHY
