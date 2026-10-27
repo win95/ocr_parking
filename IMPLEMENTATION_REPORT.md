@@ -37,7 +37,6 @@ python -m smart_parking --inspector-only --config configs/modes/debug.yaml
 
 ## Việc còn lại
 
-- Đếm reconnect RTSP trong ingest.
 - Metric GPU trong `PipelineMetrics` (tùy chọn nvidia-ml-py).
 - Preview ảnh từng tầng trên Inspector.
 - Xác thực Inspector cho production.

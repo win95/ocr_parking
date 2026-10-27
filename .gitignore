@@ -5,6 +5,7 @@ __pycache__/
 data/
 models/
 logs/
+mlruns/
 *.engine
 *.onnx
 .DS_Store

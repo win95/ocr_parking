@@ -6,26 +6,65 @@
   <style>
     body { font-family: system-ui, sans-serif; margin: 16px; background: #1a1a1a; color: #eee; }
     h1 { font-size: 1.25rem; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
     section { background: #2a2a2a; padding: 12px; border-radius: 8px; }
     table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     td, th { border-bottom: 1px solid #444; padding: 4px 6px; text-align: left; }
     .bad { color: #f66; }
+    .warn { color: #fa0; }
     .ok { color: #6f6; }
     pre { font-size: 0.75rem; max-height: 200px; overflow: auto; }
+    .status-pill { font-weight: 600; }
   </style>
 </head>
 <body>
   <h1>Smart Parking — Pipeline Inspector</h1>
-  <p>Chế độ: <span id="mode">—</span> | Bất đồng fusion: <span id="disagree">0</span></p>
+  <p>
+    Chế độ: <span id="mode">—</span> |
+    Tổng thể: <span id="overall" class="status-pill">—</span> |
+    Bất đồng fusion: <span id="disagree">0</span>
+  </p>
+  <p class="hint" style="font-size:0.8rem;color:#aaa">
+    FFmpeg publish trên laptop ≠ server đã nhận frame. Ingest phản ánh góc nhìn server (RTSP read).
+    DEGRADED ingest + HEALTHY model → ưu tiên kiểm tra video/reconnect.
+  </p>
+  <div class="grid" style="margin: 12px 0">
+    <section><h2>Ingest</h2><table id="health-ingest"></table></section>
+    <section><h2>Model</h2><table id="health-model"></table></section>
+    <section><h2>Occupancy</h2><table id="health-occupancy"></table></section>
+  </div>
+  <section style="margin-bottom: 12px">
+    <h2>Baseline (frame gần nhất)</h2>
+    <table id="baseline"></table>
+  </section>
+  <section style="margin-bottom: 12px">
+    <h2>Đồng bộ pipeline</h2>
+    <table id="pipeline-sync"></table>
+  </section>
+  <section style="margin-bottom: 12px">
+    <h2>Tầng pipeline — trạng thái &amp; hoạt động cuối</h2>
+    <table id="layers">
+      <tr>
+        <th>Tầng</th>
+        <th>Trạng thái</th>
+        <th>Bật</th>
+        <th>Hoạt động cuối</th>
+        <th>Lỗi gần nhất</th>
+      </tr>
+    </table>
+  </section>
   <div class="grid">
-    <section>
-      <h2>Sức khỏe tầng</h2>
-      <table id="layers"><tr><th>Tầng</th><th>Bật</th><th>OK</th><th>Lỗi</th></tr></table>
-    </section>
     <section>
       <h2>Metric frame</h2>
       <pre id="metrics">đang tải…</pre>
+    </section>
+    <section>
+      <h2>Ingest (chi tiết)</h2>
+      <pre id="ingest-detail">—</pre>
+    </section>
+    <section>
+      <h2>Stage timing (frame hiện tại)</h2>
+      <pre id="stage-timing">—</pre>
     </section>
     <section style="grid-column: 1 / -1">
       <h2>Log gần đây</h2>
@@ -33,17 +72,130 @@
     </section>
   </div>
   <script>
+    function statusClass(s) {
+      if (s === 'HEALTHY' || s === 'OK') return 'ok';
+      if (s === 'DEGRADED' || s === 'STALE') return 'warn';
+      if (s === 'UNHEALTHY' || s === 'ERROR' || s === 'LỖI') return 'bad';
+      return '';
+    }
+    function msToIso(ms) {
+      if (ms == null || ms <= 0) return '—';
+      return new Date(ms).toISOString();
+    }
+    function layerRowStatus(row) {
+      if (row.status) return row.status;
+      if (row.enabled === false) return 'TẮT';
+      if (!row.healthy) return 'LỖI';
+      if (row.stale) return 'STALE';
+      return 'OK';
+    }
+    function buildLayerRows(data) {
+      const ing = data.ingest || {};
+      const mod = data.model || {};
+      const occ = data.occupancy || {};
+      const ops = [
+        {
+          name: 'ingest',
+          enabled: true,
+          status: ing.status,
+          lastAt: ing.last_frame_at,
+          lastError: ing.last_error,
+        },
+        {
+          name: 'model (inference)',
+          enabled: true,
+          status: mod.status,
+          lastAt: mod.last_inference_at,
+          lastError: mod.last_error,
+        },
+        {
+          name: 'occupancy',
+          enabled: true,
+          status: occ.status,
+          lastAt: occ.last_update_at,
+          lastError: occ.last_error,
+        },
+      ];
+      const order = ['yolo', 'detr', 'fusion', 'tracking', 'occupancy', 'overlay', 'minimap'];
+      const pipe = [];
+      const layers = data.layers || {};
+      for (const key of order) {
+        if (layers[key]) pipe.push({ name: key, ...layers[key] });
+      }
+      for (const [name, h] of Object.entries(layers)) {
+        if (!order.includes(name)) pipe.push({ name, ...h });
+      }
+      return ops.concat(
+        pipe.map((h) => ({
+          name: h.name,
+          enabled: h.enabled,
+          healthy: h.healthy,
+          stale: h.stale,
+          status: null,
+          lastAt: msToIso(h.last_ok_ms),
+          lastError: h.last_error,
+        }))
+      );
+    }
+    function fillHealthTable(el, obj, keys) {
+      el.innerHTML = '<tr><th>Trường</th><th>Giá trị</th></tr>';
+      for (const k of keys) {
+        const v = obj[k];
+        const tr = document.createElement('tr');
+        const cls = k === 'status' ? 'status-pill ' + statusClass(v) : '';
+        tr.innerHTML = `<td>${k}</td><td class="${cls}">${v ?? '—'}</td>`;
+        el.appendChild(tr);
+      }
+    }
     async function refresh() {
       const r = await fetch('/api/state');
       const data = await r.json();
       document.getElementById('mode').textContent = data.config_mode || 'normal';
+      const overall = document.getElementById('overall');
+      overall.textContent = data.overall_status || '—';
+      overall.className = 'status-pill ' + statusClass(data.overall_status);
       document.getElementById('disagree').textContent = data.fusion_disagreements ?? 0;
+      fillHealthTable(document.getElementById('baseline'), data.baseline || {}, [
+        'fps', 'pipeline_latency_ms', 'dropped_frames', 'ram_mb',
+        'gpu_util_percent', 'vram_mb', 'frame_id', 'updated_at',
+      ]);
+      const ing = data.ingest || {};
+      const mod = data.model || {};
+      const occ = data.occupancy || {};
+      fillHealthTable(document.getElementById('health-ingest'),
+        ing, ['status','source_id','last_frame_at','frame_age_ms','reconnect_count','last_error','lifecycle_state']);
+      fillHealthTable(document.getElementById('health-model'),
+        mod, ['status','last_inference_at','inference_errors','last_error']);
+      fillHealthTable(document.getElementById('health-occupancy'),
+        occ, ['status','last_update_at','update_errors','last_error']);
+      const sync = data.pipeline_sync || {};
+      fillHealthTable(document.getElementById('pipeline-sync'),
+        sync, ['last_frame_at','last_pipeline_at','frame_to_pipeline_lag_ms']);
       document.getElementById('metrics').textContent = JSON.stringify(data.metrics, null, 2);
+      document.getElementById('ingest-detail').textContent = JSON.stringify(data.ingest_detail || {}, null, 2);
+      const stages = (data.metrics && data.metrics.stages) || [];
+      document.getElementById('stage-timing').textContent = stages.length
+        ? JSON.stringify(stages, null, 2)
+        : '—';
       const tbody = document.getElementById('layers');
-      tbody.innerHTML = '<tr><th>Tầng</th><th>Bật</th><th>OK</th><th>Lỗi</th></tr>';
-      for (const [name, h] of Object.entries(data.layers || {})) {
+      tbody.innerHTML = `
+        <tr>
+          <th>Tầng</th>
+          <th>Trạng thái</th>
+          <th>Bật</th>
+          <th>Hoạt động cuối</th>
+          <th>Lỗi gần nhất</th>
+        </tr>`;
+      for (const row of buildLayerRows(data)) {
+        const st = layerRowStatus(row);
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${name}</td><td>${h.enabled}</td><td class="${h.healthy?'ok':'bad'}">${h.healthy}</td><td>${h.last_error||''}</td>`;
+        const err = row.lastError ? String(row.lastError) : '—';
+        tr.innerHTML = `
+          <td>${row.name}</td>
+          <td class="status-pill ${statusClass(st)}">${st}</td>
+          <td>${row.enabled === false ? 'false' : 'true'}</td>
+          <td>${row.lastAt ?? '—'}</td>
+          <td class="${err !== '—' ? 'bad' : ''}">${err}</td>`;
         tbody.appendChild(tr);
       }
       document.getElementById('logs').textContent = JSON.stringify(data.logs || [], null, 2);

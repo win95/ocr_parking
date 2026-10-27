@@ -70,6 +70,11 @@ class FrameSource(ABC):
         """True for continuous sources (RTSP/webcam) that can be re-opened."""
         return False
 
+    @property
+    def last_read_error(self) -> str | None:
+        """Last capture read failure, if any."""
+        return None
+
     def __enter__(self) -> FrameSource:
         self.open()
         return self
@@ -94,10 +99,15 @@ class VideoSource(FrameSource):
         self._connect_timeout_ms = connect_timeout_ms
         self._cap: cv2.VideoCapture | None = None
         self._frame_id = 0
+        self._last_read_error: str | None = None
 
     @property
     def is_live(self) -> bool:
         return self._path.startswith(_RTSP_PREFIX)
+
+    @property
+    def last_read_error(self) -> str | None:
+        return self._last_read_error
 
     def open(self) -> None:
         if self.is_live:
@@ -117,7 +127,9 @@ class VideoSource(FrameSource):
             return None
         ok, frame = self._cap.read()
         if not ok:
+            self._last_read_error = "VideoCapture.read() failed (end of stream or RTSP error)"
             return None
+        self._last_read_error = None
         ctx = FrameContext(
             frame_id=self._frame_id,
             timestamp_ms=time.time() * 1000.0,
@@ -139,10 +151,15 @@ class WebcamSource(FrameSource):
         self._index = index
         self._cap: cv2.VideoCapture | None = None
         self._frame_id = 0
+        self._last_read_error: str | None = None
 
     @property
     def is_live(self) -> bool:
         return True
+
+    @property
+    def last_read_error(self) -> str | None:
+        return self._last_read_error
 
     def open(self) -> None:
         cap = cv2.VideoCapture(self._index)
@@ -155,7 +172,9 @@ class WebcamSource(FrameSource):
             return None
         ok, frame = self._cap.read()
         if not ok:
+            self._last_read_error = "VideoCapture.read() failed (webcam disconnected?)"
             return None
+        self._last_read_error = None
         ctx = FrameContext(
             frame_id=self._frame_id,
             timestamp_ms=time.time() * 1000.0,

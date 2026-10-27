@@ -8,10 +8,20 @@ import time
 
 import cv2
 
-from smart_parking.analytics import DEFAULT_WIDGETS, KPIEngine
+from smart_parking.analytics import DEFAULT_WIDGETS, AlertEngine, KPIEngine
 from smart_parking.config import AppConfig
 from smart_parking.ingest import FrameLoop, is_live_source, parse_source
 from smart_parking.ingest.sources import FrameSource
+from smart_parking.ingest.telemetry import (
+    configure_ingest,
+    mark_connecting,
+    mark_frame_received,
+    mark_ingest_error,
+    mark_pipeline_processed,
+    mark_stream_available,
+    read_error_from_source,
+    set_reconnect_count,
+)
 from smart_parking.occupancy import load_slots
 from smart_parking.pipeline.context import PipelineFrame
 from smart_parking.pipeline.observability import new_correlation_id
@@ -21,6 +31,26 @@ from smart_parking.types import SlotState
 from smart_parking.ui import render_panel
 
 _log = logging.getLogger("smart_parking")
+
+
+def _compose_vis(pf: PipelineFrame, raw) -> "cv2.Mat":
+    vis = pf.overlay_image if pf.overlay_image is not None else raw.image
+    if pf.minimap_image is not None:
+        mw = max(1, vis.shape[1] // 4)
+        mh = max(1, vis.shape[0] // 4)
+        mm = cv2.resize(pf.minimap_image, (mw, mh))
+        h, w = min(mh, vis.shape[0]), min(mw, vis.shape[1])
+        vis[0:h, 0:w] = mm[0:h, 0:w]
+    return vis
+
+
+def _save_alert_frame(save_dir: str, pf: PipelineFrame, raw, code: str) -> None:
+    from pathlib import Path
+
+    folder = Path(save_dir)
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{pf.camera_id}_{pf.frame_id:06d}_{code}.jpg"
+    cv2.imwrite(str(path), _compose_vis(pf, raw))
 
 
 def _start_inspector(cfg: AppConfig) -> None:
@@ -53,6 +83,7 @@ def _consume_frames(
     pipeline: ModularPipeline,
     kpi: KPIEngine,
     artifacts: ArtifactStore | None,
+    alerts: AlertEngine | None,
     fps_state: dict,
 ) -> None:
     """Process frames until the source is exhausted."""
@@ -66,6 +97,7 @@ def _consume_frames(
 
     window = "Smart Parking"
     for raw in loop:
+        mark_frame_received(raw.timestamp_ms)
         pf = PipelineFrame(
             camera_id=cfg.pipeline.camera_id,
             frame_id=raw.frame_id,
@@ -75,6 +107,7 @@ def _consume_frames(
         )
         pf.fps = fps_state["fps"]
         pf = pipeline.process(pf)
+        mark_pipeline_processed(pf.timestamp_ms, pf.frame_id)
         legacy_states = {
             sid: SlotState(
                 slot_id=sid,
@@ -84,6 +117,23 @@ def _consume_frames(
             for sid, st in pf.slot_states.items()
         }
         snapshot = kpi.update(legacy_states)
+
+        if alerts is not None:
+            from smart_parking.pipeline.observability import INSPECTOR_STORE
+
+            health = INSPECTOR_STORE.to_dict()
+            slot_statuses = {sid: st.status.value for sid, st in pf.slot_states.items()}
+            fired = alerts.evaluate(
+                camera_id=pf.camera_id,
+                frame_id=pf.frame_id,
+                correlation_id=pf.correlation_id,
+                utilization_pct=float(snapshot.get("utilization_pct", 0)),
+                slot_statuses=slot_statuses,
+                health=health,
+            )
+            save_dir = cfg.analytics.alerts.save_frame_dir
+            if fired and save_dir:
+                _save_alert_frame(save_dir, pf, raw, fired[0]["code"])
 
         if artifacts:
             artifacts.maybe_save(pf, cfg.artifacts.sample_every_n)
@@ -96,13 +146,7 @@ def _consume_frames(
 
         if not cfg.ui.enabled:
             continue
-        vis = pf.overlay_image if pf.overlay_image is not None else raw.image
-        if pf.minimap_image is not None:
-            mw = max(1, vis.shape[1] // 4)
-            mh = max(1, vis.shape[0] // 4)
-            mm = cv2.resize(pf.minimap_image, (mw, mh))
-            h, w = min(mh, vis.shape[0]), min(mw, vis.shape[1])
-            vis[0:h, 0:w] = mm[0:h, 0:w]
+        vis = _compose_vis(pf, raw)
         panel = render_panel(
             vis.shape[0],
             cfg.ui.panel_width,
@@ -123,12 +167,21 @@ def run_app(cfg: AppConfig) -> None:
     slots = load_slots(cfg.slots_path)
     pipeline = ModularPipeline(cfg)
     kpi = KPIEngine(len(slots), cfg.analytics.log_path)
+    alert_engine = (
+        AlertEngine(cfg.analytics.alerts) if cfg.analytics.alerts.enabled else None
+    )
     artifacts = (
         ArtifactStore(cfg.artifacts.directory, cfg.artifacts.max_frames)
         if cfg.artifacts.enabled
         else None
     )
     _start_inspector(cfg)
+    configure_ingest(
+        cfg.source,
+        cfg.ingest.stale_frame_ms,
+        source_id=cfg.pipeline.camera_id,
+    )
+    set_reconnect_count(0)
 
     fps_state = {"fps": 0.0, "t_prev": time.perf_counter()}
     live = is_live_source(cfg.source)
@@ -138,10 +191,16 @@ def run_app(cfg: AppConfig) -> None:
         while True:
             source: FrameSource | None = None
             try:
+                mark_connecting()
                 source = _open_source(cfg)
+                mark_stream_available()
                 live = source.is_live
-                _consume_frames(cfg, source, pipeline, kpi, artifacts, fps_state)
-            except Exception:
+                _consume_frames(cfg, source, pipeline, kpi, artifacts, alert_engine, fps_state)
+                read_err = read_error_from_source(source)
+                if read_err:
+                    mark_ingest_error(read_err)
+            except Exception as exc:
+                mark_ingest_error(str(exc))
                 _log.exception("Error while reading source %s", cfg.source)
             finally:
                 if source is not None:
@@ -149,13 +208,15 @@ def run_app(cfg: AppConfig) -> None:
 
             if not (live and cfg.ingest.reconnect):
                 break
-            reconnects += 1
+            next_reconnect = reconnects + 1
             if (
                 cfg.ingest.max_reconnects is not None
-                and reconnects > cfg.ingest.max_reconnects
+                and next_reconnect > cfg.ingest.max_reconnects
             ):
                 _log.error("Reconnect limit reached (%s), stopping", cfg.ingest.max_reconnects)
                 break
+            reconnects = next_reconnect
+            set_reconnect_count(reconnects)
             _log.warning(
                 "Source %s ended, reconnecting in %.1fs (attempt %s)",
                 cfg.source,
