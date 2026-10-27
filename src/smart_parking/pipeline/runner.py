@@ -226,11 +226,23 @@ class ModularPipeline:
             )
             for k, v in frame.slot_states.items()
         }
+        detr_dets = None
+        if self._cfg.pipeline.layers.detr:
+            detr_dets = (
+                detections_from_batch(frame.detr_batch) if frame.detr_batch else []
+            )
+        yolo_dets = None
+        if self._cfg.pipeline.layers.yolo:
+            yolo_dets = (
+                detections_from_batch(frame.yolo_batch) if frame.yolo_batch else []
+            )
         ctx = FrameContext(
             frame_id=frame.frame_id,
             timestamp_ms=frame.timestamp_ms,
             image=frame.image,
             detections=frame.detections,
+            detr_detections=detr_dets,
+            yolo_detections=yolo_dets,
             slot_states=legacy_slots,
             tracks=frame.tracks,
             fps=frame.fps,

@@ -26,11 +26,17 @@ from smart_parking.occupancy import load_slots
 from smart_parking.pipeline.context import PipelineFrame
 from smart_parking.pipeline.observability import new_correlation_id
 from smart_parking.pipeline.runner import ModularPipeline
+from smart_parking.pipeline.system_stats import system_snapshot
 from smart_parking.replay.store import ArtifactStore
 from smart_parking.types import SlotState
 from smart_parking.ui import render_panel
 
 _log = logging.getLogger("smart_parking")
+
+
+def _advance_tokens(tokens: float, dt: float, max_fps: float) -> float:
+    """Token bucket so the average rate matches max_fps without wasting frames."""
+    return min(2.0, tokens + max(0.0, dt) * max_fps)
 
 
 def _compose_vis(pf: PipelineFrame, raw) -> "cv2.Mat":
@@ -96,8 +102,19 @@ def _consume_frames(
     )
 
     window = "Smart Parking"
+    max_fps = cfg.pipeline.max_fps or 0.0
+    tokens = 1.0
+    last_tick = time.perf_counter()
     for raw in loop:
         mark_frame_received(raw.timestamp_ms)
+        if max_fps > 0.0:
+            now = time.perf_counter()
+            tokens = _advance_tokens(tokens, now - last_tick, max_fps)
+            last_tick = now
+            if tokens < 1.0:
+                pipeline.mark_dropped()
+                continue
+            tokens -= 1.0
         pf = PipelineFrame(
             camera_id=cfg.pipeline.camera_id,
             frame_id=raw.frame_id,
@@ -130,6 +147,7 @@ def _consume_frames(
                 utilization_pct=float(snapshot.get("utilization_pct", 0)),
                 slot_statuses=slot_statuses,
                 health=health,
+                system=system_snapshot(),
             )
             save_dir = cfg.analytics.alerts.save_frame_dir
             if fired and save_dir:
@@ -170,6 +188,19 @@ def run_app(cfg: AppConfig) -> None:
     alert_engine = (
         AlertEngine(cfg.analytics.alerts) if cfg.analytics.alerts.enabled else None
     )
+    if alert_engine is not None:
+        alert_engine.notify(
+            "pipeline_started",
+            "info",
+            {
+                "source": cfg.source,
+                "camera_id": cfg.pipeline.camera_id,
+                "detr": cfg.pipeline.layers.detr,
+                "yolo": cfg.pipeline.layers.yolo,
+                "fusion": cfg.pipeline.layers.fusion,
+            },
+            camera_id=cfg.pipeline.camera_id,
+        )
     artifacts = (
         ArtifactStore(cfg.artifacts.directory, cfg.artifacts.max_frames)
         if cfg.artifacts.enabled

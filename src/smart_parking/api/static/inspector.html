@@ -6,15 +6,21 @@
   <style>
     body { font-family: system-ui, sans-serif; margin: 16px; background: #1a1a1a; color: #eee; }
     h1 { font-size: 1.25rem; }
+    h2 { font-size: 0.95rem; margin: 0 0 8px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
     section { background: #2a2a2a; padding: 12px; border-radius: 8px; }
     table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    td, th { border-bottom: 1px solid #444; padding: 4px 6px; text-align: left; }
+    td, th { border-bottom: 1px solid #444; padding: 4px 6px; text-align: left; vertical-align: middle; }
     .bad { color: #f66; }
     .warn { color: #fa0; }
     .ok { color: #6f6; }
     pre { font-size: 0.75rem; max-height: 200px; overflow: auto; }
     .status-pill { font-weight: 600; }
+    .meter { display: inline-block; width: 110px; height: 8px; background: #444; border-radius: 4px; overflow: hidden; vertical-align: middle; margin-right: 6px; }
+    .meter > span { display: block; height: 100%; }
+    canvas { width: 100%; height: 70px; margin-top: 8px; }
+    .badge { display: inline-block; min-width: 18px; padding: 0 6px; border-radius: 9px; background: #555; text-align: center; font-size: 0.8rem; }
+    .badge.hot { background: #a22; }
   </style>
 </head>
 <body>
@@ -22,7 +28,9 @@
   <p>
     Chế độ: <span id="mode">—</span> |
     Tổng thể: <span id="overall" class="status-pill">—</span> |
-    Bất đồng fusion: <span id="disagree">0</span>
+    Bất đồng fusion: <span id="disagree">0</span> |
+    Detect (frame cuối): <span id="det-counts">—</span> |
+    Cảnh báo: <span id="alert-count" class="badge">0</span>
   </p>
   <p class="hint" style="font-size:0.8rem;color:#aaa">
     FFmpeg publish trên laptop ≠ server đã nhận frame. Ingest phản ánh góc nhìn server (RTSP read).
@@ -32,6 +40,24 @@
     <section><h2>Ingest</h2><table id="health-ingest"></table></section>
     <section><h2>Model</h2><table id="health-model"></table></section>
     <section><h2>Occupancy</h2><table id="health-occupancy"></table></section>
+  </div>
+  <div class="grid" style="margin-bottom: 12px">
+    <section>
+      <h2>GPU server</h2>
+      <table id="sys-gpu"></table>
+      <canvas id="chart-gpu" width="360" height="70"></canvas>
+    </section>
+    <section>
+      <h2>RAM / CPU server</h2>
+      <table id="sys-ram"></table>
+      <canvas id="chart-ram" width="360" height="70"></canvas>
+    </section>
+    <section>
+      <h2>Cảnh báo gần đây</h2>
+      <table id="alerts">
+        <tr><th>Thời gian</th><th>Mức</th><th>Mã</th><th>Chi tiết</th></tr>
+      </table>
+    </section>
   </div>
   <section style="margin-bottom: 12px">
     <h2>Baseline (frame gần nhất)</h2>
@@ -72,15 +98,115 @@
     </section>
   </div>
   <script>
+    const gpuHist = [];
+    const ramHist = [];
+
     function statusClass(s) {
-      if (s === 'HEALTHY' || s === 'OK') return 'ok';
-      if (s === 'DEGRADED' || s === 'STALE') return 'warn';
-      if (s === 'UNHEALTHY' || s === 'ERROR' || s === 'LỖI') return 'bad';
+      if (s === 'HEALTHY' || s === 'OK' || s === 'info') return 'ok';
+      if (s === 'DEGRADED' || s === 'STALE' || s === 'warning') return 'warn';
+      if (s === 'UNHEALTHY' || s === 'ERROR' || s === 'LỖI' || s === 'critical') return 'bad';
       return '';
     }
     function msToIso(ms) {
       if (ms == null || ms <= 0) return '—';
       return new Date(ms).toISOString();
+    }
+    function bar(pct, color) {
+      const p = Math.max(0, Math.min(100, Number(pct) || 0));
+      return `<span class="meter"><span style="width:${p}%;background:${color}"></span></span>${p.toFixed(1)}%`;
+    }
+    function fillRows(el, rows) {
+      el.innerHTML = '<tr><th>Trường</th><th>Giá trị</th></tr>';
+      for (const [k, v, cls] of rows) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${k}</td><td class="${cls || ''}">${v ?? '—'}</td>`;
+        el.appendChild(tr);
+      }
+    }
+    function fillSystem(sys) {
+      const gpu = sys.gpu;
+      if (gpu) {
+        const tempCls = gpu.temperature_c >= 90 ? 'bad' : gpu.temperature_c >= 85 ? 'warn' : '';
+        fillRows(document.getElementById('sys-gpu'), [
+          ['Tên', gpu.name],
+          ['Sử dụng', bar(gpu.util_percent, '#3a8ee6')],
+          ['VRAM', bar(gpu.vram_percent, '#8e5cd9') + ` <span style="color:#aaa">${gpu.vram_used_mb}/${gpu.vram_total_mb} MB</span>`],
+          ['Nhiệt độ', gpu.temperature_c != null ? `${gpu.temperature_c} °C` : '—', tempCls],
+          ['Công suất', gpu.power_w != null ? `${gpu.power_w} W` : '—'],
+        ]);
+        gpuHist.push(Number(gpu.util_percent) || 0);
+      } else {
+        fillRows(document.getElementById('sys-gpu'), [['Trạng thái', 'Không đọc được GPU (nvidia-smi)', 'warn']]);
+        gpuHist.push(0);
+      }
+      if (gpuHist.length > 120) gpuHist.shift();
+      drawChart(document.getElementById('chart-gpu'), gpuHist, '#3a8ee6');
+
+      const ram = sys.ram || {};
+      const swap = sys.swap || {};
+      fillRows(document.getElementById('sys-ram'), [
+        ['RAM', bar(ram.percent, '#2fa84f') + ` <span style="color:#aaa">${ram.used_mb}/${ram.total_mb} MB</span>`],
+        ['RAM trống', `${ram.available_mb} MB`],
+        ['Swap', bar(swap.percent, '#c9861a') + ` <span style="color:#aaa">${swap.used_mb}/${swap.total_mb} MB</span>`],
+        ['CPU', bar(sys.cpu_percent, '#e0b030') + ` <span style="color:#aaa">${sys.cpu_count} luồng</span>`],
+        ['Load avg', Array.isArray(sys.load_avg) ? sys.load_avg.map((v) => Number(v).toFixed(2)).join(' / ') : '—'],
+      ]);
+      ramHist.push(Number(ram.percent) || 0);
+      if (ramHist.length > 120) ramHist.shift();
+      drawChart(document.getElementById('chart-ram'), ramHist, '#2fa84f');
+    }
+    function drawChart(canvas, series, color) {
+      const c = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      c.clearRect(0, 0, w, h);
+      c.strokeStyle = '#3a3a3a';
+      c.lineWidth = 1;
+      c.strokeRect(0.5, 0.5, w - 1, h - 1);
+      if (series.length < 2) return;
+      c.beginPath();
+      series.forEach((v, i) => {
+        const x = (i / (series.length - 1)) * (w - 2) + 1;
+        const y = h - 1 - (Math.max(0, Math.min(100, v)) / 100) * (h - 2);
+        if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+      });
+      c.strokeStyle = color;
+      c.lineWidth = 1.5;
+      c.stroke();
+    }
+    function renderAlerts(alerts) {
+      const el = document.getElementById('alerts');
+      const list = alerts || [];
+      const badge = document.getElementById('alert-count');
+      badge.textContent = list.length;
+      badge.className = 'badge' + (list.length ? ' hot' : '');
+      el.innerHTML = '<tr><th>Thời gian</th><th>Mức</th><th>Mã</th><th>Chi tiết</th></tr>';
+      if (!list.length) {
+        el.innerHTML += '<tr><td colspan="4" style="color:#888">Không có cảnh báo</td></tr>';
+        return;
+      }
+      for (const a of [...list].reverse()) {
+        const tr = document.createElement('tr');
+        const detail = a.detail ? JSON.stringify(a.detail) : '';
+        tr.innerHTML = `
+          <td>${a.ts ? new Date(a.ts * 1000).toLocaleTimeString('vi-VN') : '—'}</td>
+          <td class="status-pill ${statusClass(a.severity)}">${a.severity || '—'}</td>
+          <td>${a.code || '—'}</td>
+          <td style="color:#aaa" title="${detail.replace(/"/g, '&quot;')}">${detail.length > 90 ? detail.slice(0, 90) + '…' : detail}</td>`;
+        el.appendChild(tr);
+      }
+    }
+    function detectionCounts(metrics) {
+      const stages = (metrics && metrics.stages) || [];
+      const pick = (name) => {
+        const s = stages.find((x) => x.stage === name);
+        return s ? s.output_count : null;
+      };
+      const parts = [];
+      for (const name of ['detr', 'yolo', 'fusion']) {
+        const n = pick(name);
+        if (n !== null) parts.push(`${name.toUpperCase()}: ${n}`);
+      }
+      return parts.length ? parts.join(' · ') : '—';
     }
     function layerRowStatus(row) {
       if (row.status) return row.status;
@@ -148,13 +274,18 @@
       }
     }
     async function refresh() {
-      const r = await fetch('/api/state');
-      const data = await r.json();
+      const [stateRes, sysRes] = await Promise.all([
+        fetch('/api/state'),
+        fetch('/api/system').catch(() => null),
+      ]);
+      const data = await stateRes.json();
       document.getElementById('mode').textContent = data.config_mode || 'normal';
       const overall = document.getElementById('overall');
       overall.textContent = data.overall_status || '—';
       overall.className = 'status-pill ' + statusClass(data.overall_status);
       document.getElementById('disagree').textContent = data.fusion_disagreements ?? 0;
+      document.getElementById('det-counts').textContent = detectionCounts(data.metrics);
+      renderAlerts(data.alerts);
       fillHealthTable(document.getElementById('baseline'), data.baseline || {}, [
         'fps', 'pipeline_latency_ms', 'dropped_frames', 'ram_mb',
         'gpu_util_percent', 'vram_mb', 'frame_id', 'updated_at',
@@ -177,6 +308,13 @@
       document.getElementById('stage-timing').textContent = stages.length
         ? JSON.stringify(stages, null, 2)
         : '—';
+      if (sysRes && sysRes.ok) {
+        try {
+          fillSystem(await sysRes.json());
+        } catch (e) {
+          /* keep last known values */
+        }
+      }
       const tbody = document.getElementById('layers');
       tbody.innerHTML = `
         <tr>

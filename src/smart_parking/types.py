@@ -45,6 +45,9 @@ class FrameContext:
     timestamp_ms: float
     image: np.ndarray
     detections: list[Detection] = field(default_factory=list)
+    # Per-model detections for drawing; None means the layer is disabled.
+    detr_detections: list[Detection] | None = None
+    yolo_detections: list[Detection] | None = None
     raw_occupied: dict[str, bool] = field(default_factory=dict)
     slot_states: dict[str, SlotState] = field(default_factory=dict)
     tracks: list[Track] = field(default_factory=list)

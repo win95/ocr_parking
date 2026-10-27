@@ -1,4 +1,5 @@
-from smart_parking.detection.yolo_ultralytics import vehicle_allowed
+from smart_parking.config import DetectionConfig
+from smart_parking.detection.yolo_ultralytics import allowed_classes, vehicle_allowed
 
 VEHICLES = {"car", "truck", "bus", "motorcycle", "vehicle"}
 
@@ -18,3 +19,9 @@ def test_non_vehicle_class_dropped() -> None:
 def test_empty_allow_list_keeps_everything() -> None:
     assert vehicle_allowed("person", set()) is True
     assert vehicle_allowed("car", set()) is True
+
+
+def test_allowed_classes_honours_vehicle_only() -> None:
+    assert allowed_classes(DetectionConfig()) == VEHICLES
+    assert allowed_classes(DetectionConfig(vehicle_only=False)) == set()
+    assert allowed_classes(DetectionConfig(vehicle_classes=["car"])) == {"car"}

@@ -17,6 +17,13 @@ def vehicle_allowed(name: str, allowed: set[str]) -> bool:
     return not allowed or name.lower() in allowed
 
 
+def allowed_classes(cfg: DetectionConfig) -> set[str]:
+    """Classes a detector may emit, honouring ``vehicle_only``."""
+    if not cfg.vehicle_only:
+        return set()
+    return {c.lower() for c in (cfg.vehicle_classes or [])}
+
+
 class YoloDetector:
     """YOLO backend using Ultralytics."""
 
@@ -25,7 +32,7 @@ class YoloDetector:
 
         self._cfg = cfg
         self._model = YOLO(cfg.model_path)
-        self._vehicles = {c.lower() for c in (cfg.vehicle_classes or [])}
+        self._vehicles = allowed_classes(cfg)
 
     def detect(self, image: np.ndarray) -> list[Detection]:
         results = self._model.predict(

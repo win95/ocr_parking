@@ -99,6 +99,7 @@ class InspectorSnapshot:
     metrics: PipelineMetrics | None = None
     layers: dict[str, LayerHealth] = field(default_factory=dict)
     logs: list[dict[str, Any]] = field(default_factory=list)
+    alerts: list[dict[str, Any]] = field(default_factory=list)
     previews: dict[str, Any] = field(default_factory=dict)
     fusion_disagreements: int = 0
     config_mode: str = "normal"
@@ -110,9 +111,10 @@ class InspectorSnapshot:
 class InspectorStateStore:
     """Thread-safe holder for inspector UI."""
 
-    def __init__(self, max_logs: int = 500) -> None:
+    def __init__(self, max_logs: int = 500, max_alerts: int = 100) -> None:
         self._lock = threading.Lock()
         self._max_logs = max_logs
+        self._max_alerts = max_alerts
         self.snapshot = InspectorSnapshot()
 
     def update_metrics(self, metrics: PipelineMetrics) -> None:
@@ -128,6 +130,16 @@ class InspectorStateStore:
             self.snapshot.logs.append(entry)
             if len(self.snapshot.logs) > self._max_logs:
                 self.snapshot.logs = self.snapshot.logs[-self._max_logs :]
+
+    def append_alert(self, alert: dict[str, Any]) -> None:
+        with self._lock:
+            self.snapshot.alerts.append(alert)
+            if len(self.snapshot.alerts) > self._max_alerts:
+                self.snapshot.alerts = self.snapshot.alerts[-self._max_alerts :]
+
+    def alerts(self, limit: int = 50) -> list[dict[str, Any]]:
+        with self._lock:
+            return list(self.snapshot.alerts[-limit:])
 
     def set_preview(self, key: str, value: Any) -> None:
         with self._lock:
@@ -242,6 +254,7 @@ class InspectorStateStore:
                 "metrics": m.model_dump() if m else None,
                 "layers": {k: v.__dict__ for k, v in self.snapshot.layers.items()},
                 "logs": list(self.snapshot.logs[-100:]),
+                "alerts": list(self.snapshot.alerts[-50:]),
                 "previews": self.snapshot.previews,
                 "fusion_disagreements": self.snapshot.fusion_disagreements,
                 "config_mode": self.snapshot.config_mode,

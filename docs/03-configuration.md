@@ -14,12 +14,14 @@ Mặc định: `configs/default.yaml` hoặc biến môi trường `SMART_PARKIN
 | `source` | str | `data/sample.mp4` | Đường dẫn, `webcam:N`, hoặc `rtsp://` |
 | `slots_path` | str | `configs/slots/...` | Polygon slot |
 | `pipeline.mode` | str | `normal` | normal / debug / replay / benchmark |
+| `pipeline.max_fps` | float | `null` | Giới hạn frame xử lý/giây (`5` = nửa tải) |
 | `pipeline.layers.*` | bool | — | Bật/tắt từng tầng |
 | `detection.backend` | str | `pytorch` | `pytorch` hoặc `tensorrt` |
 | `detection.model_path` | str | `yolo11n.pt` | Weights hoặc `.engine` |
 | `detection.confidence` | float | 0.35 | Ngưỡng score |
 | `detection.imgsz` | int | 640 | Kích thước input |
 | `detection.device` | str | `0` | CUDA hoặc `cpu` |
+| `detection.vehicle_only` | bool | true | `false` = hiện mọi lớp COCO (demo) |
 | `detr.model_id` | str | `facebook/detr-resnet-50-dc5` | HF model id cho DETR |
 | `detr.device` | str | `cpu` | CUDA (`0`) hoặc `cpu` |
 | `detr.confidence` | float | 0.5 | Ngưỡng score DETR |
@@ -32,7 +34,12 @@ Mặc định: `configs/default.yaml` hoặc biến môi trường `SMART_PARKIN
 | `tracking.iou_threshold` | float | 0.3 | Ngưỡng IoU |
 | `ui.enabled` | bool | true | Cửa sổ OpenCV |
 | `inspector.enabled` | bool | false | API Inspector |
+| `inspector.host` / `inspector.port` | str / int | `127.0.0.1` / 8765 | `0.0.0.0` để mở trong LAN |
 | `analytics.log_path` | str | `logs/events.jsonl` | Sự kiện KPI |
+| `analytics.alerts.enabled` | bool | false | Cảnh báo ra dashboard + JSONL |
+| `analytics.alerts.gpu_temp_c_threshold` | float | `null` | Ngưỡng nhiệt GPU (°C) |
+| `analytics.alerts.vram_pct_threshold` | float | `null` | Ngưỡng VRAM (%) |
+| `analytics.alerts.ram_pct_threshold` | float | `null` | Ngưỡng RAM (%) |
 
 Chi tiết pipeline: `pipeline/`, `fusion/`, `detr/`, `artifacts/` trong `config.py`.
 

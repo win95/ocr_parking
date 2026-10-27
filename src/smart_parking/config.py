@@ -18,6 +18,9 @@ class DetectionConfig(BaseModel):
     confidence: float = 0.35
     imgsz: int = 640
     device: str = "0"
+    # Keep every model output or only vehicle_classes. Turn this off to see
+    # every COCO class on the overlay (useful while aiming a demo camera).
+    vehicle_only: bool = True
     vehicle_classes: list[str] = Field(
         default_factory=lambda: ["car", "truck", "bus", "motorcycle", "vehicle"]
     )
@@ -62,6 +65,15 @@ class PipelineConfig(BaseModel):
     queue_max: int = 1
     drop_frames_in_realtime: bool = True
     stop_on_stage_error: bool = True
+    # Cap processed frames per second (None = process every incoming frame).
+    max_fps: float | None = None
+
+    @field_validator("max_fps")
+    @classmethod
+    def positive_fps(cls, value: float | None) -> float | None:
+        if value is not None and value <= 0:
+            raise ValueError("max_fps must be > 0")
+        return value
 
     @model_validator(mode="after")
     def replay_no_drop(self) -> PipelineConfig:
@@ -131,6 +143,10 @@ class AlertsConfig(BaseModel):
     on_model_unhealthy: bool = True
     on_slot_stale: bool = True
     utilization_pct_threshold: float | None = None
+    # Server resources (None = rule disabled).
+    gpu_temp_c_threshold: float | None = None
+    vram_pct_threshold: float | None = None
+    ram_pct_threshold: float | None = None
     save_frame_dir: str | None = None
 
 

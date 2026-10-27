@@ -31,6 +31,16 @@ def create_app():
         data = INSPECTOR_STORE.to_dict()
         return JSONResponse(data.get("metrics") or {})
 
+    @app.get("/api/alerts")
+    def alerts() -> JSONResponse:
+        return JSONResponse({"alerts": INSPECTOR_STORE.alerts()})
+
+    @app.get("/api/system")
+    def system() -> JSONResponse:
+        from smart_parking.pipeline.system_stats import system_snapshot
+
+        return JSONResponse(system_snapshot())
+
     @app.get("/")
     def index() -> FileResponse:
         return FileResponse(_HTML)

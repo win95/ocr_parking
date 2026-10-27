@@ -18,6 +18,8 @@ pipeline:
   queue_max: 1
   drop_frames_in_realtime: true
   stop_on_stage_error: true
+  # Giới hạn số frame xử lý/giây (stream vào 10 fps). 5 = giảm nửa tải GPU.
+  max_fps: 5.0
   layers:
     detr: true
     yolo: true
@@ -34,12 +36,16 @@ detection:
   device: "0"
   imgsz: 640
   confidence: 0.35
+  # Demo: hiện mọi lớp COCO để thấy khung detect của YOLO.
+  # Bãi xe thật: đặt lại true để chỉ giữ xe.
+  vehicle_only: false
 
 detr:
   model_id: facebook/detr-resnet-50-dc5
   device: "0"
   confidence: 0.5
-  vehicle_only: true
+  # Demo: hiện mọi lớp DETR phát hiện được (person/chair/...).
+  vehicle_only: false
   # Đo trên GTX 1080 với frame 1280x720: size 800 = 360 ms, 480 = 78 ms,
   # 384 = 49 ms (20 FPS), 320 = 38 ms. 384 giữ realtime cho stream 10 fps.
   size: 384
@@ -67,3 +73,15 @@ artifacts:
 
 analytics:
   log_path: logs/events_detr.jsonl
+  alerts:
+    enabled: true
+    log_path: logs/alerts_detr.jsonl
+    cooldown_seconds: 30.0
+    on_ingest_degraded: true
+    on_ingest_unhealthy: true
+    on_model_unhealthy: true
+    on_slot_stale: true
+    utilization_pct_threshold: null
+    gpu_temp_c_threshold: 85.0
+    vram_pct_threshold: 90.0
+    ram_pct_threshold: 90.0

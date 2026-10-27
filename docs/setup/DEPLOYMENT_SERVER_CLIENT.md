@@ -52,8 +52,10 @@ mở dashboard được:
 python -m smart_parking --config configs/deploy/server.detr.yaml
 
 # từ máy khác trong LAN
-xdg-open http://192.168.100.239:8768/       # dashboard
+xdg-open http://192.168.100.239:8768/       # dashboard (GPU/RAM + cảnh báo)
 curl http://192.168.100.239:8768/api/metrics
+curl http://192.168.100.239:8768/api/system   # GPU/RAM/CPU máy server
+curl http://192.168.100.239:8768/api/alerts   # cảnh báo gần đây
 ```
 
 Lưu ý: Inspector **không có xác thực** — chỉ mở trong LAN tin cậy, không

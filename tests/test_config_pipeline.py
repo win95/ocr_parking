@@ -19,6 +19,22 @@ def test_detr_deploy_config() -> None:
     assert cfg.fusion.strategy == "union"
     assert cfg.detr.model_id == "facebook/detr-resnet-50-dc5"
     assert cfg.detr.size == 384
+    # Demo shows every class of both models on the overlay.
+    assert cfg.detr.vehicle_only is False
+    assert cfg.yolo is not None and cfg.yolo.vehicle_only is False
+    assert cfg.analytics.alerts.enabled is True
+    assert cfg.analytics.alerts.gpu_temp_c_threshold == 85.0
+    assert cfg.analytics.alerts.ram_pct_threshold == 90.0
+    assert cfg.pipeline.max_fps == 5.0
+
+
+def test_fps_cap_token_bucket() -> None:
+    from smart_parking.app import _advance_tokens
+
+    assert _advance_tokens(0.0, 0.1, 5.0) == 0.5
+    assert _advance_tokens(0.8, 0.1, 5.0) == 1.3
+    assert _advance_tokens(1.0, 10.0, 5.0) == 2.0
+    assert _advance_tokens(0.5, -1.0, 5.0) == 0.5
 
 
 def test_detr_device_alias() -> None:
