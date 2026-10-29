@@ -85,7 +85,7 @@ if [[ ! -f "$CFG" ]]; then
   exit 1
 fi
 
-if grep -qE 'LAPTOP_IP|CLIENT_IP' "$CFG"; then
+if grep -qE '^source:.*(LAPTOP_IP|CLIENT_IP)' "$CFG"; then
   echo "Replace LAPTOP_IP/CLIENT_IP in $CFG with client LAN address"
   exit 1
 fi
