@@ -1,5 +1,7 @@
 # Triển khai Server + Client
 
+> **Hướng dẫn hợp nhất (setup + chạy + tra cứu script):** [RUN_AND_SETUP.md](RUN_AND_SETUP.md).
+>
 > **Triển khai chính:** [SCENARIO_B_LAPTOP_CLIENT.md](SCENARIO_B_LAPTOP_CLIENT.md) — **Server GPU** + **laptop client** (webcam hoặc **video MP4** qua RTSP).
 
 Pipeline chạy trên **server**; **client** chỉ cung cấp video (RTSP / file copy).

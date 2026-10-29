@@ -49,14 +49,18 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 start_mlflow_ui() {
-  if ! command -v mlflow >/dev/null 2>&1; then
+  local mlflow_bin="$ROOT/.venv/bin/mlflow"
+  if [[ ! -x "$mlflow_bin" ]]; then
+    mlflow_bin="$(command -v mlflow || true)"
+  fi
+  if [[ -z "$mlflow_bin" ]]; then
     echo "MLflow not installed. Run: pip install -e \".[mlflow]\""
     exit 1
   fi
   mkdir -p "$MLFLOW_TRACKING_URI" logs
   export MLFLOW_TRACKING_URI MLFLOW_EXPERIMENT_NAME
   echo "MLflow tracking: $MLFLOW_TRACKING_URI (experiment: $MLFLOW_EXPERIMENT_NAME)"
-  mlflow ui \
+  "$mlflow_bin" ui \
     --host "$MLFLOW_UI_HOST" \
     --port "$MLFLOW_UI_PORT" \
     --backend-store-uri "$MLFLOW_TRACKING_URI" \

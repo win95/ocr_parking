@@ -7,12 +7,20 @@ Theo dõi chỗ trống/đã chiếm thời gian thực với YOLO11, làm mư�
 ## Bắt đầu nhanh
 
 ```bash
-python3.11 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev,inspector]"
-# Cài PyTorch CUDA: https://pytorch.org
-python scripts/verify_gpu_ready.py
-python -m smart_parking --config configs/default.yaml --source data/sample.mp4
+git clone git@github.com:win95/ocr_parking.git && cd ocr_parking
+bash scripts/setup_server.sh          # apt + .venv + extras
+source .venv/bin/activate
+python scripts/verify_gpu_ready.py    # cài PyTorch CUDA nếu chưa có
+
+# Chạy với file MP4 có sẵn
+python -m smart_parking --config configs/deploy/server-file-local.yaml
+
+# Kịch bản B: server nhận RTSP từ laptop client
+bash scripts/server_start_rtsp.sh
 ```
+
+Hướng dẫn đầy đủ (setup, cấu hình, script, Inspector, MLflow/MCP, systemd):
+[docs/setup/RUN_AND_SETUP.md](docs/setup/RUN_AND_SETUP.md).
 
 ## Pipeline modular & gỡ lỗi
 

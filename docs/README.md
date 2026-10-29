@@ -11,6 +11,7 @@ Mục lục tài liệu (documentation-first). Cập nhật **Trạng thái** kh
 | [04-slot-calibration.md](04-slot-calibration.md) | Sẵn sàng |
 | [PIPELINE_ARCHITECTURE.md](PIPELINE_ARCHITECTURE.md) | Sẵn sàng |
 | [TECH_STACK.md](TECH_STACK.md) | Sẵn sàng |
+| [setup/RUN_AND_SETUP.md](setup/RUN_AND_SETUP.md) | Sẵn sàng |
 | [setup/HARDWARE.md](setup/HARDWARE.md) | Sẵn sàng |
 | [setup/ubuntu-gpu.md](setup/ubuntu-gpu.md) | Sẵn sàng |
 | [setup/VERSIONS.md](setup/VERSIONS.md) | Sẵn sàng |
