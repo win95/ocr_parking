@@ -17,7 +17,7 @@ def start_inspector(cfg: AppConfig) -> None:
     def _run() -> None:
         from smart_parking.api.inspector import run_inspector
 
-        run_inspector(cfg.inspector.host, cfg.inspector.port)
+        run_inspector(cfg.inspector)
 
     threading.Thread(target=_run, daemon=True).start()
     _log.info("Inspector http://%s:%s", cfg.inspector.host, cfg.inspector.port)

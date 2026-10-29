@@ -19,5 +19,7 @@ pip install -e ".[dev,inspector]"
 mkdir -p data models logs logs/artifacts configs/slots
 cp -n configs/deploy/server.yaml configs/deploy/server.local.yaml 2>/dev/null || true
 echo "Edit configs/deploy/server.local.yaml — set rtsp://CLIENT_IP:8554/parking"
+echo "Inspector LAN: đặt inspector.host: 0.0.0.0 + inspector.allow_networks;"
+echo "  token tùy chọn qua SMART_PARKING_INSPECTOR_TOKEN (xem docs/ops/security.md)"
 echo "Run: source .venv/bin/activate && python scripts/verify_gpu_ready.py"
 echo "Run: SMART_PARKING_CONFIG=configs/deploy/server.local.yaml python -m smart_parking"

@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from smart_parking.contracts import HealthStatus, IngestState
-from smart_parking.pipeline.health import ingest_health, model_health, occupancy_health
+from smart_parking.pipeline.health import (
+    ModelHealthSnapshot,
+    ingest_health,
+    model_health,
+    occupancy_health,
+)
 from smart_parking.pipeline.observability import INSPECTOR_STORE
 
 
@@ -44,3 +49,14 @@ def test_health_helpers() -> None:
 
     block = ingest_health(Ing(), IngestState.STALE, 2000.0, "cam1")
     assert block["status"] == HealthStatus.DEGRADED.value
+
+
+def test_model_health_tolerates_frame_interval_lag() -> None:
+    class Ing:
+        last_frame_at_ms = 10_000.0
+
+    on_time = ModelHealthSnapshot(last_inference_at_ms=9_900.0)
+    assert model_health(on_time, Ing(), 50.0)["status"] == HealthStatus.HEALTHY.value
+
+    lagging = ModelHealthSnapshot(last_inference_at_ms=7_000.0)
+    assert model_health(lagging, Ing(), 3000.0)["status"] == HealthStatus.DEGRADED.value

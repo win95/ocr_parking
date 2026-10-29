@@ -36,10 +36,12 @@ flowchart LR
 | Cổng | Hướng | Dịch vụ |
 |------|--------|---------|
 | 8554/TCP | Laptop → LAN | RTSP (MediaMTX) |
-| 8765/TCP | Server (local/VPN) | Pipeline Inspector |
+| 8765/TCP | LAN / VPN | Pipeline Inspector (allowlist + token tùy chọn) |
 | 22/TCP | Quản trị | SSH |
 
-RTSP chỉ trong VLAN. Inspector remote qua SSH tunnel.
+RTSP chỉ trong VLAN. Inspector mặc định localhost; khi mở LAN phải đặt
+`inspector.allow_networks` đúng subnet và nên dùng token — xem
+[security.md](../ops/security.md).
 
 ---
 

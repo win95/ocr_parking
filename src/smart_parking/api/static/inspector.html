@@ -85,6 +85,7 @@
     </section>
   </div>
   <script>
+    const TOKEN = new URLSearchParams(location.search).get('token') || '';
     function statusClass(s) {
       if (s === 'HEALTHY' || s === 'OK') return 'ok';
       if (s === 'DEGRADED' || s === 'STALE') return 'warn';
@@ -191,7 +192,13 @@
 
     async function refresh() {
       const q = selectedCamera ? `?camera_id=${encodeURIComponent(selectedCamera)}` : '';
-      const r = await fetch('/api/state' + q);
+      const headers = TOKEN ? { 'X-API-Token': TOKEN } : {};
+      const r = await fetch('/api/state' + q, { headers });
+      if (!r.ok) {
+        document.getElementById('overall').textContent =
+          `HTTP ${r.status} — kiểm tra allow_networks/API token (?token=...)`;
+        return;
+      }
       const data = await r.json();
       syncCameraSelect(data.cameras, data.active_camera_id);
       document.getElementById('model-registry').textContent = data.model_registry_id || '—';

@@ -8,6 +8,10 @@ from typing import Any
 
 from smart_parking.contracts import HealthStatus, IngestState
 
+# Live ingest can advance last_frame_at before the current frame finishes
+# inference. Allow a small lag so the model is not reported DEGRADED every frame.
+_MAX_INFERENCE_LAG_MS = 1_000.0
+
 
 def ms_to_iso(ts_ms: float | None) -> str | None:
     if ts_ms is None:
@@ -158,7 +162,7 @@ def _model_status(
         return HealthStatus.DEGRADED
     if model.last_inference_at_ms is None:
         return HealthStatus.DEGRADED
-    if model.last_inference_at_ms < ingest.last_frame_at_ms - 1.0:
+    if model.last_inference_at_ms < ingest.last_frame_at_ms - _MAX_INFERENCE_LAG_MS:
         return HealthStatus.DEGRADED
     return HealthStatus.HEALTHY
 
@@ -175,6 +179,9 @@ def _occupancy_status(
         return HealthStatus.DEGRADED
     if occ.last_update_at_ms is None:
         return HealthStatus.DEGRADED
-    if model.last_inference_at_ms and occ.last_update_at_ms < model.last_inference_at_ms - 1.0:
+    if (
+        model.last_inference_at_ms
+        and occ.last_update_at_ms < model.last_inference_at_ms - _MAX_INFERENCE_LAG_MS
+    ):
         return HealthStatus.DEGRADED
     return HealthStatus.HEALTHY

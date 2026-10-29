@@ -137,7 +137,17 @@ Inspector (trên server):
 curl http://127.0.0.1:8765/api/health
 ```
 
-Từ máy khác (SSH tunnel):
+Từ máy khác trong LAN (đã khai báo subnet trong `inspector.allow_networks`):
+
+```bash
+curl http://192.168.1.100:8765/api/health
+# Dashboard: http://192.168.1.100:8765
+# Nếu đặt SMART_PARKING_INSPECTOR_TOKEN:
+#   http://192.168.1.100:8765/?token=<token>
+#   curl -H "X-API-Token: <token>" http://192.168.1.100:8765/api/state
+```
+
+Hoặc dùng SSH tunnel nếu không muốn mở LAN:
 
 ```bash
 ssh -L 8765:127.0.0.1:8765 user@192.168.1.100

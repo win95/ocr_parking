@@ -10,7 +10,7 @@ pipeline:
 
 detection:
   backend: pytorch
-  model_path: yolo11n.pt
+  model_path: models/yolo11n.pt
   device: "0"
   imgsz: 640
   confidence: 0.35

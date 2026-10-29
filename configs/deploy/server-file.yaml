@@ -8,7 +8,7 @@ pipeline:
   drop_frames_in_realtime: false
 
 detection:
-  model_path: yolo11n.pt
+  model_path: models/yolo11n.pt
   device: "0"
 
 ui:

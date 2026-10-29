@@ -36,7 +36,7 @@ def main() -> None:
         )
         from smart_parking.api.inspector import run_inspector
 
-        run_inspector(cfg.inspector.host, cfg.inspector.port)
+        run_inspector(cfg.inspector)
         return
     run_app(cfg)
 

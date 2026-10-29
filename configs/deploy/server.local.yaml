@@ -33,12 +33,20 @@ detection:
   confidence: 0.35
 
 ui:
-  enabled: true
+  enabled: false
 
 inspector:
   enabled: true
-  host: 127.0.0.1
+  host: 0.0.0.0
   port: 8765
+  # Loopback luôn được phép; thêm subnet LAN/VPN được phép truy cập.
+  allow_networks:
+    - 127.0.0.0/8
+    - ::1/128
+    - 192.168.100.0/24
+  # Đặt token qua env thay vì ghi vào file:
+  #   export SMART_PARKING_INSPECTOR_TOKEN=...
+  # Dashboard: http://<server>:8765/?token=<token>
 
 artifacts:
   enabled: true
@@ -48,3 +56,11 @@ artifacts:
 
 analytics:
   log_path: logs/events.jsonl
+  alerts:
+    enabled: true
+    log_path: logs/alerts.jsonl
+    cooldown_seconds: 30.0
+    on_ingest_degraded: true
+    on_ingest_unhealthy: true
+    on_model_unhealthy: true
+    on_slot_stale: true

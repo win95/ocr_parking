@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from enum import Enum
 from typing import TYPE_CHECKING
+
+import cv2
 
 from smart_parking.analytics import AlertEngine, KPIEngine
 from smart_parking.config import AppConfig
@@ -18,6 +21,8 @@ from smart_parking.types import SlotState
 
 if TYPE_CHECKING:
     from smart_parking.ingest.sources import FrameSource
+
+_log = logging.getLogger("smart_parking")
 
 
 class StreamExitReason(str, Enum):
@@ -47,6 +52,7 @@ def consume_frames(
     from smart_parking.ingest.telemetry import mark_frame_received, mark_pipeline_processed
 
     window = "Smart Parking"
+    ui_enabled = cfg.ui.enabled
     for raw in loop:
         mark_frame_received(raw.timestamp_ms)
         pf = PipelineFrame(
@@ -108,10 +114,14 @@ def consume_frames(
         if dt > 0:
             fps_state["fps"] = 0.9 * fps_state["fps"] + 0.1 * (1.0 / dt)
 
-        if not cfg.ui.enabled:
+        if not ui_enabled:
             continue
-        if not show_frame(cfg, pf, raw, snapshot, fps_state["fps"], window):
-            return StreamExitReason.USER_QUIT
+        try:
+            if not show_frame(cfg, pf, raw, snapshot, fps_state["fps"], window):
+                return StreamExitReason.USER_QUIT
+        except cv2.error as exc:
+            _log.warning("Local UI disabled after OpenCV display error: %s", exc)
+            ui_enabled = False
 
     return StreamExitReason.STREAM_ENDED
 

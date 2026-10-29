@@ -18,7 +18,7 @@ python -m smart_parking --config configs/default.yaml --source data/sample.mp4
 
 - Kiến trúc: [docs/PIPELINE_ARCHITECTURE.md](docs/PIPELINE_ARCHITECTURE.md)
 - Chế độ debug: `python -m smart_parking --config configs/modes/debug.yaml`
-- Giao diện Pipeline Inspector: `http://127.0.0.1:8765` (khi `inspector.enabled: true`)
+- Giao diện Pipeline Inspector: `http://<server-ip>:8765` (khi `inspector.enabled: true`; xem [docs/ops/security.md](docs/ops/security.md))
 - DETR + YOLO: `pip install -e ".[detr]"` rồi dùng `configs/modes/dual_model.yaml`
 
 Calibrate slot: `python scripts/calibrate_slots.py --image data/ref.jpg --out configs/slots/parking_lot_01.json`

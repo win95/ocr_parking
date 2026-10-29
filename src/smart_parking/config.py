@@ -92,6 +92,24 @@ class InspectorConfig(BaseModel):
     enabled: bool = False
     host: str = "127.0.0.1"
     port: int = 8765
+    # Loopback is always allowed; add LAN/VPN CIDRs to expose the API remotely.
+    allow_networks: list[str] = Field(
+        default_factory=lambda: ["127.0.0.0/8", "::1/128"]
+    )
+    # Optional bearer token. Prefer SMART_PARKING_INSPECTOR_TOKEN over YAML.
+    api_token: str | None = Field(default=None, repr=False)
+
+    @field_validator("allow_networks")
+    @classmethod
+    def validate_networks(cls, values: list[str]) -> list[str]:
+        import ipaddress
+
+        for value in values:
+            try:
+                ipaddress.ip_network(value, strict=False)
+            except ValueError as exc:
+                raise ValueError(f"invalid CIDR {value!r}") from exc
+        return values
 
 
 class ArtifactsConfig(BaseModel):
@@ -235,4 +253,12 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     cfg_path = path or os.environ.get("SMART_PARKING_CONFIG", "configs/default.yaml")
     with open(cfg_path, encoding="utf-8") as fh:
         data = yaml.safe_load(fh) or {}
-    return AppConfig.model_validate(data)
+    cfg = AppConfig.model_validate(data)
+    token = os.environ.get("SMART_PARKING_INSPECTOR_TOKEN")
+    if token:
+        cfg = cfg.model_copy(
+            update={
+                "inspector": cfg.inspector.model_copy(update={"api_token": token}),
+            }
+        )
+    return cfg

@@ -1,14 +1,20 @@
 [Unit]
 Description=Smart Parking Analytics (server)
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=smartparking
-WorkingDirectory=/opt/smart-parking
-Environment=SMART_PARKING_CONFIG=/opt/smart-parking/configs/deploy/server.local.yaml
-ExecStart=/opt/smart-parking/.venv/bin/python -m smart_parking
-Restart=on-failure
+# Runs as the account that owns the repo. Change User/Group if needed.
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=%h/ocr_parking
+Environment=SMART_PARKING_CONFIG=%h/ocr_parking/configs/deploy/server.local.yaml
+Environment=PYTHONUNBUFFERED=1
+# Optional: SMART_PARKING_INSPECTOR_TOKEN=... in this file (chmod 600).
+EnvironmentFile=-/etc/smart-parking/server.env
+ExecStart=%h/ocr_parking/.venv/bin/python -m smart_parking
+Restart=always
 RestartSec=5
 
 [Install]

@@ -34,6 +34,8 @@ class Slot:
     id: str
     zone: str
     polygon: list[tuple[float, float]]
+    meta_width: float | None = None
+    meta_height: float | None = None
 
 
 def load_slots(path: str | Path) -> list[Slot]:
@@ -47,7 +49,15 @@ def load_slots(path: str | Path) -> list[Slot]:
         poly = [(float(p[0]), float(p[1])) for p in z.polygon]
         if width is not None and height is not None:
             _validate_bounds(poly, float(width), float(height))
-        slots.append(Slot(id=z.id, zone=z.zone, polygon=poly))
+        slots.append(
+            Slot(
+                id=z.id,
+                zone=z.zone,
+                polygon=poly,
+                meta_width=float(width) if width is not None else None,
+                meta_height=float(height) if height is not None else None,
+            )
+        )
     return slots
 
 
