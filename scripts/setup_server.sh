@@ -14,12 +14,13 @@ fi
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -U pip wheel
-pip install -e ".[dev,inspector]"
+pip install -e ".[dev,inspector,mlflow]"
 
-mkdir -p data models logs logs/artifacts configs/slots
+mkdir -p data models logs logs/artifacts mlruns configs/slots
 cp -n configs/deploy/server.yaml configs/deploy/server.local.yaml 2>/dev/null || true
 echo "Edit configs/deploy/server.local.yaml — set rtsp://CLIENT_IP:8554/parking"
 echo "Inspector LAN: đặt inspector.host: 0.0.0.0 + inspector.allow_networks;"
 echo "  token tùy chọn qua SMART_PARKING_INSPECTOR_TOKEN (xem docs/ops/security.md)"
 echo "Run: source .venv/bin/activate && python scripts/verify_gpu_ready.py"
-echo "Run: SMART_PARKING_CONFIG=configs/deploy/server.local.yaml python -m smart_parking"
+echo "Run: bash scripts/server_start_rtsp.sh"
+echo "Run: bash scripts/server_start_rtsp.sh --with-mlflow   # + MLflow UI :5000"

@@ -37,9 +37,12 @@ export SMART_PARKING_CONFIG=configs/modes/experiment_gpu.yaml
 Benchmark + MLflow:
 
 ```bash
+bash scripts/server_start_rtsp.sh --with-mlflow
+# hoặc chỉ UI tracking:
+bash scripts/server_start_rtsp.sh --mlflow-only
+
 python scripts/benchmark_fps.py --config configs/modes/benchmark.yaml --seconds 60 \
   --mlflow --dataset parking_lot --dataset-version v1 --run-name gpu-bench-$(date +%Y%m%d)
-mlflow ui --host 0.0.0.0 --port 5000 --backend-store-uri ./mlruns
 ```
 
 ## 3. Cảnh báo thử nghiệm (chỉ log)
