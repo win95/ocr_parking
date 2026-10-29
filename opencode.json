@@ -1,0 +1,19 @@
+{
+  "mcp": {
+    "servers": {
+      "mlflow": {
+        "type": "local",
+        "command": [
+          "/home/ubuntu/.venvs/mlflow-mcp/bin/mlflow",
+          "mcp",
+          "run"
+        ],
+        "environment": {
+          "MLFLOW_TRACKING_URI": "http://127.0.0.1:5000",
+          "MLFLOW_MCP_TOOLS": "ml",
+          "MLFLOW_DISABLE_AGENT_HINT": "1"
+        }
+      }
+    }
+  }
+}

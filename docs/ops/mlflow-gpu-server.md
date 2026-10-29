@@ -80,3 +80,42 @@ models:
 ```
 
 Chạy lặp benchmark: `bash scripts/bench_models.sh configs/modes/benchmark.yaml`
+
+## 5. MLflow MCP server (AI assistant)
+
+Cho phép agent/IDE đọc experiments, runs, model registry qua MCP thay vì
+mở UI. Yêu cầu MLflow ≥ 3.5.1 + Python ≥ 3.10, nên chạy trong môi trường
+riêng — **không** cài vào `.venv` Python 3.8 của project.
+
+```bash
+# Cài (một lần, dùng uv để lấy Python 3.12)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+~/.local/bin/uv venv --python 3.12 ~/.venvs/mlflow-mcp
+~/.local/bin/uv pip install --python ~/.venvs/mlflow-mcp/bin/python 'mlflow[mcp]>=3.5.1'
+
+# Kiểm tra
+~/.venvs/mlflow-mcp/bin/mlflow mcp run --help
+```
+
+Đăng ký với OpenCode (tạo `opencode.json` ở root repo):
+
+```bash
+opencode mcp add mlflow \
+  --env MLFLOW_TRACKING_URI=http://127.0.0.1:5000 \
+  --env MLFLOW_MCP_TOOLS=ml \
+  --env MLFLOW_DISABLE_AGENT_HINT=1 \
+  -- ~/.venvs/mlflow-mcp/bin/mlflow mcp run
+opencode mcp list   # ✓ mlflow connected
+```
+
+`MLFLOW_MCP_TOOLS` chọn nhóm tool: `ml` (experiments, runs, models,
+deployments — mặc định ở đây), `genai` (traces, scorers, experiments, runs),
+`all`, hoặc danh sách `traces,runs,...`.
+
+Lưu ý tương thích: MCP 3.x dùng API mới cho traces/scorers, nên **chỉ dùng
+`MLFLOW_MCP_TOOLS=ml`** khi tracking server vẫn là 2.17.x (như hiện tại).
+Muốn dùng trace tools phải nâng server lên ≥ 3.5.1 rồi đổi sang `genai`
+hoặc `all`.
+
+Client khác (Claude Desktop, Cursor…) dùng cùng command/args ở trên với
+`MLFLOW_TRACKING_URI` trỏ tới server hoặc `file:///home/ubuntu/ocr_parking/mlruns`.
