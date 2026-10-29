@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from smart_parking.analytics import AlertEngine, KPIEngine
@@ -19,6 +20,11 @@ if TYPE_CHECKING:
     from smart_parking.ingest.sources import FrameSource
 
 
+class StreamExitReason(str, Enum):
+    STREAM_ENDED = "stream_ended"
+    USER_QUIT = "user_quit"
+
+
 def consume_frames(
     cfg: AppConfig,
     source: FrameSource,
@@ -27,14 +33,16 @@ def consume_frames(
     artifacts: ArtifactStore | None,
     alerts: AlertEngine | None,
     fps_state: dict,
-) -> None:
+) -> StreamExitReason:
     """Process frames until the source is exhausted or UI quit."""
+    read_timeout = cfg.ingest.read_timeout_ms if source.is_live else None
     loop = FrameLoop(
         source,
         max_queue=cfg.pipeline.queue_max,
         drop_when_busy=cfg.pipeline.drop_frames_in_realtime
         and cfg.pipeline.mode not in ("replay", "benchmark"),
         on_drop=pipeline.mark_dropped,
+        read_timeout_ms=read_timeout,
     )
     from smart_parking.ingest.telemetry import mark_frame_received, mark_pipeline_processed
 
@@ -61,12 +69,12 @@ def consume_frames(
             for sid, st in pf.slot_states.items()
         }
         snapshot = kpi.update(legacy_states)
+        slot_statuses = {sid: st.status.value for sid, st in pf.slot_states.items()}
 
         fired_count = 0
         if alerts is not None:
             store = get_inspector_store(pf.camera_id)
             health = store.to_dict()
-            slot_statuses = {sid: st.status.value for sid, st in pf.slot_states.items()}
             fired = alerts.evaluate(
                 camera_id=pf.camera_id,
                 frame_id=pf.frame_id,
@@ -80,6 +88,15 @@ def consume_frames(
             if fired and save_dir:
                 save_alert_frame(save_dir, pf, raw, fired[0]["code"])
 
+        store = get_inspector_store(pf.camera_id)
+        store.set_last_alert_context(
+            {
+                "frame_id": pf.frame_id,
+                "correlation_id": pf.correlation_id,
+                "utilization_pct": float(snapshot.get("utilization_pct", 0)),
+                "slot_statuses": slot_statuses,
+            }
+        )
         _update_current_frame(pf, fired_count)
 
         if artifacts:
@@ -94,7 +111,9 @@ def consume_frames(
         if not cfg.ui.enabled:
             continue
         if not show_frame(cfg, pf, raw, snapshot, fps_state["fps"], window):
-            break
+            return StreamExitReason.USER_QUIT
+
+    return StreamExitReason.STREAM_ENDED
 
 
 def _update_current_frame(pf: PipelineFrame, alerts_this_frame: int) -> None:

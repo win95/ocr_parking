@@ -108,6 +108,7 @@ class InspectorSnapshot:
     occupancy: OccupancyHealthSnapshot = field(default_factory=OccupancyHealthSnapshot)
     recent_alerts: list[dict[str, Any]] = field(default_factory=list)
     current_frame: dict[str, Any] = field(default_factory=dict)
+    last_alert_context: dict[str, Any] = field(default_factory=dict)
 
 
 class InspectorStateStore:
@@ -148,6 +149,10 @@ class InspectorStateStore:
     def set_model_registry_id(self, registry_id: str | None) -> None:
         with self._lock:
             self.snapshot.model_registry_id = registry_id
+
+    def set_last_alert_context(self, payload: dict[str, Any]) -> None:
+        with self._lock:
+            self.snapshot.last_alert_context = payload
 
     def set_preview(self, key: str, value: Any) -> None:
         with self._lock:

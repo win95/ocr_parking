@@ -85,6 +85,7 @@ class IngestConfig(BaseModel):
     reconnect_delay_seconds: float = 3.0
     max_reconnects: int | None = None
     stale_frame_ms: float = 5000.0
+    read_timeout_ms: float = 10000.0
 
 
 class InspectorConfig(BaseModel):

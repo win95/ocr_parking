@@ -73,6 +73,24 @@ class AlertEngine:
             self._write(camera_id, frame_id, correlation_id, alert)
         return fired
 
+    def evaluate_from_store(self, camera_id: str) -> list[dict[str, Any]]:
+        """Evaluate rules from latest Inspector snapshot (no new frame required)."""
+        from smart_parking.pipeline.observability import get_inspector_store
+
+        store = get_inspector_store(camera_id)
+        ctx = store.snapshot.last_alert_context
+        health = store.to_dict()
+        frame_id = int(ctx.get("frame_id") or 0)
+        correlation_id = str(ctx.get("correlation_id") or "operational")
+        return self.evaluate(
+            camera_id=camera_id,
+            frame_id=frame_id,
+            correlation_id=correlation_id,
+            utilization_pct=float(ctx.get("utilization_pct") or 0.0),
+            slot_statuses=dict(ctx.get("slot_statuses") or {}),
+            health=health,
+        )
+
     def _maybe(
         self,
         out: list[dict[str, Any]],

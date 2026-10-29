@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import deque
 from typing import Callable, Iterator
 
+from smart_parking.ingest.read_guard import read_with_timeout
 from smart_parking.ingest.sources import FrameSource
 from smart_parking.types import FrameContext
 
@@ -18,10 +19,12 @@ class FrameLoop:
         max_queue: int = 1,
         drop_when_busy: bool = True,
         on_drop: Callable[[], None] | None = None,
+        read_timeout_ms: float | None = None,
     ) -> None:
         self._source = source
         self._max_queue = max(1, max_queue)
         self._on_drop = on_drop
+        self._read_timeout_ms = read_timeout_ms
         self._buffer: deque[FrameContext] = deque(maxlen=self._max_queue)
 
     @property
@@ -32,7 +35,7 @@ class FrameLoop:
 
     def __iter__(self) -> Iterator[FrameContext]:
         while True:
-            ctx = self._source.read()
+            ctx = self._read_one()
             if ctx is None:
                 break
             if self._max_queue == 1:
@@ -46,3 +49,12 @@ class FrameLoop:
                     self._on_drop()
                 self._buffer.popleft()
             yield self._buffer[-1]
+
+    def _read_one(self) -> FrameContext | None:
+        if (
+            self._read_timeout_ms
+            and self._read_timeout_ms > 0
+            and self._source.is_live
+        ):
+            return read_with_timeout(self._source, self._read_timeout_ms)
+        return self._source.read()
