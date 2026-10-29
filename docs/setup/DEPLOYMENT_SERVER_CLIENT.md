@@ -27,6 +27,8 @@ flowchart LR
 | **B** | Tập trung — **khuyến nghị** | Laptop phát RTSP | GPU + `rtsp://client/...` |
 | **C** | File trên server | `scp` video | `data/*.mp4` |
 
+**Profile server:** `configs/deploy/server.yaml` — headless (`ui.enabled: false`), Inspector metric-only (không stream ảnh). Demo OpenCV trên server: `configs/deploy/server.view.yaml`.
+
 ---
 
 ## Mạng

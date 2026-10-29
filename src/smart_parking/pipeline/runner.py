@@ -17,7 +17,7 @@ from smart_parking.occupancy.slots import load_slots
 from smart_parking.pipeline.coasting import apply_track_coasting_to_slots
 from smart_parking.pipeline.context import PipelineFrame
 from smart_parking.pipeline.gpu_stats import read_gpu_utilization
-from smart_parking.pipeline.observability import INSPECTOR_STORE
+from smart_parking.pipeline.observability import get_inspector_store
 from smart_parking.pipeline.stages.base import PipelineStage
 from smart_parking.tracking.mot import SimpleTracker
 from smart_parking.types import FrameContext, SlotState
@@ -109,22 +109,34 @@ class ModularPipeline:
             _DetrStage(detr_layer, self._detr),
             _YoloStage(cfg.pipeline.layers.yolo, self._yolo),
         ]
-        INSPECTOR_STORE.snapshot.config_mode = cfg.pipeline.mode
+        get_inspector_store(cfg.pipeline.camera_id).snapshot.config_mode = cfg.pipeline.mode
 
     def process(self, frame: PipelineFrame) -> PipelineFrame:
+        store = get_inspector_store(frame.camera_id)
         frame.ensure_dims()
         timings: list[StageTiming] = []
         stage_failed = False
         for stage in self._stages:
             t = stage.run(frame)
             timings.append(t)
-            INSPECTOR_STORE.set_layer(stage.name, stage.health(t))
+            store.set_layer(stage.name, stage.health(t))
             if stage.enabled and stage.name in ("yolo", "detr"):
-                INSPECTOR_STORE.record_model_inference(
+                store.record_model_inference(
                     frame.timestamp_ms, t.ok, t.error
                 )
             if stage.enabled and not t.ok:
                 stage_failed = True
+                if self._cfg.pipeline.mode == "debug":
+                    from smart_parking.pipeline.observability import log_stage
+
+                    log_stage(
+                        frame.correlation_id,
+                        frame.camera_id,
+                        frame.frame_id,
+                        stage.name,
+                        "ERROR",
+                        t.error or "stage failed",
+                    )
 
         if stage_failed and self._cfg.pipeline.stop_on_stage_error:
             frame.detections = []
@@ -155,7 +167,7 @@ class ModularPipeline:
             except Exception as exc:
                 occ_ok = False
                 occ_err = str(exc)
-            INSPECTOR_STORE.record_occupancy_update(
+            store.record_occupancy_update(
                 frame.timestamp_ms, occ_ok, occ_err
             )
             timings.append(
@@ -186,14 +198,15 @@ class ModularPipeline:
             timestamp_ms=frame.timestamp_ms,
             fps=frame.fps,
             dropped_frames=self._dropped,
+            queue_depth=int(frame.extra.get("queue_depth", 0)),
             stages=timings,
             ram_mb=psutil.Process().memory_info().rss / (1024 * 1024),
             gpu_util=gpu_util,
             vram_mb=vram_mb,
         )
         frame.metrics = metrics
-        INSPECTOR_STORE.update_metrics(metrics)
-        INSPECTOR_STORE.snapshot.fusion_disagreements = frame.fusion_disagreements
+        store.update_metrics(metrics)
+        store.snapshot.fusion_disagreements = frame.fusion_disagreements
         return frame
 
     def _run_fusion(self, frame: PipelineFrame) -> tuple[list, StageTiming]:

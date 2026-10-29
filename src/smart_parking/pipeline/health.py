@@ -104,6 +104,7 @@ def baseline_metrics(metrics: Any | None) -> dict[str, Any]:
         "gpu_util_percent": metrics.gpu_util,
         "vram_mb": round(metrics.vram_mb, 2) if metrics.vram_mb is not None else None,
         "frame_id": metrics.frame_id,
+        "correlation_id": getattr(metrics, "correlation_id", None),
         "updated_at": ms_to_iso(float(metrics.timestamp_ms)),
     }
 

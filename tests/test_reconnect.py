@@ -9,6 +9,7 @@ import numpy as np
 from smart_parking import app as app_module
 from smart_parking.config import AppConfig
 from smart_parking.pipeline.observability import INSPECTOR_STORE
+from smart_parking.runtime import session as session_module
 from smart_parking.types import FrameContext
 
 
@@ -77,16 +78,17 @@ def _config(**ingest) -> AppConfig:
 def _patch(monkeypatch, sources: list[FakeSource]) -> list[FakeSource]:
     opened: list[FakeSource] = []
 
-    def fake_open(_cfg):
+    def fake_open(_cfg, _stream=None):
         src = sources[len(opened)] if len(opened) < len(sources) else sources[-1]
         src.open()
         opened.append(src)
         return src
 
-    monkeypatch.setattr(app_module, "_open_source", fake_open)
-    monkeypatch.setattr(app_module, "ModularPipeline", StubPipeline)
-    monkeypatch.setattr(app_module, "KPIEngine", StubKPI)
-    monkeypatch.setattr(app_module, "load_slots", lambda _p: ["slot-1"])
+    monkeypatch.setattr(session_module, "open_frame_source", fake_open)
+    monkeypatch.setattr(session_module, "ModularPipeline", StubPipeline)
+    monkeypatch.setattr(session_module, "KPIEngine", StubKPI)
+    monkeypatch.setattr(session_module, "load_slots", lambda _p: ["slot-1"])
+    monkeypatch.setattr(session_module, "start_inspector", lambda _c: None)
     return opened
 
 
@@ -137,13 +139,14 @@ def test_survives_open_failure(monkeypatch) -> None:
     """A source that fails to open is retried until the limit is reached."""
     sources = [FakeSource(frames=1) for _ in range(3)]
 
-    def fake_open(_cfg):
+    def fake_open(_cfg, _stream=None):
         raise RuntimeError("cannot open stream")
 
-    monkeypatch.setattr(app_module, "_open_source", fake_open)
-    monkeypatch.setattr(app_module, "ModularPipeline", StubPipeline)
-    monkeypatch.setattr(app_module, "KPIEngine", StubKPI)
-    monkeypatch.setattr(app_module, "load_slots", lambda _p: ["slot-1"])
+    monkeypatch.setattr(session_module, "open_frame_source", fake_open)
+    monkeypatch.setattr(session_module, "ModularPipeline", StubPipeline)
+    monkeypatch.setattr(session_module, "KPIEngine", StubKPI)
+    monkeypatch.setattr(session_module, "load_slots", lambda _p: ["slot-1"])
+    monkeypatch.setattr(session_module, "start_inspector", lambda _c: None)
     cfg = _config(reconnect=True, reconnect_delay_seconds=0.01, max_reconnects=1)
 
     INSPECTOR_STORE.configure_ingest(cfg.source, cfg.ingest.stale_frame_ms)

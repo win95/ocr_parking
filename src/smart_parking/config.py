@@ -135,9 +135,49 @@ class AnalyticsConfig(BaseModel):
     alerts: AlertsConfig = Field(default_factory=AlertsConfig)
 
 
+class CameraConfig(BaseModel):
+    """One video ingest target (multi-camera design)."""
+
+    id: str
+    source: str
+    slots_path: str = "configs/slots/parking_lot_01.json"
+    enabled: bool = True
+
+    @field_validator("source")
+    @classmethod
+    def validate_camera_source(cls, value: str) -> str:
+        if value.startswith(("webcam:", "rtsp://")):
+            return value
+        if ".." in Path(value).parts:
+            raise ValueError("source path must not contain '..'")
+        return value
+
+
+class ModelRegistryEntry(BaseModel):
+    id: str
+    path: str
+    backend: str = "pytorch"
+    mlflow_run_id: str | None = None
+    status: Literal["draft", "approved", "retired"] = "draft"
+
+
+class ModelsConfig(BaseModel):
+    registry: list[ModelRegistryEntry] = Field(default_factory=list)
+    active: str | None = None
+
+
+class MlflowSettings(BaseModel):
+    enabled: bool = False
+    experiment_name: str = "smart-parking"
+
+
 class AppConfig(BaseModel):
     source: str = "data/sample.mp4"
     slots_path: str = "configs/slots/parking_lot_01.json"
+    cameras: list[CameraConfig] | None = None
+    active_camera: str | None = None
+    models: ModelsConfig = Field(default_factory=ModelsConfig)
+    mlflow: MlflowSettings = Field(default_factory=MlflowSettings)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     detection: DetectionConfig = Field(default_factory=DetectionConfig)
     yolo: YoloConfig | None = None
@@ -161,6 +201,22 @@ class AppConfig(BaseModel):
             self.pipeline.layers.detr and self.pipeline.layers.yolo
         ):
             raise ValueError("fusion requires both detr and yolo enabled")
+        if self.models.active:
+            entry = next(
+                (m for m in self.models.registry if m.id == self.models.active),
+                None,
+            )
+            if entry is None:
+                raise ValueError(f"models.active {self.models.active!r} not in registry")
+            if entry.status != "approved":
+                raise ValueError(
+                    f"models.active {self.models.active!r} must have status approved"
+                )
+            det = self.detection.model_copy(
+                update={"model_path": entry.path, "backend": entry.backend}
+            )
+            object.__setattr__(self, "detection", det)
+            object.__setattr__(self, "yolo", YoloConfig(**det.model_dump()))
         return self
 
     @field_validator("source")

@@ -11,15 +11,21 @@ from pathlib import Path
 
 from smart_parking.config import load_config
 from smart_parking.detection.tensorrt_runner import create_detector
-from smart_parking.ingest import FrameLoop, parse_source
+from smart_parking.ingest.frame_loop import FrameLoop
+from smart_parking.ingest.registry import effective_app_config, open_frame_source, resolve_active_stream
+from smart_parking.pipeline.context import PipelineFrame
+from smart_parking.pipeline.gpu_stats import read_gpu_utilization
+from smart_parking.pipeline.observability import new_correlation_id
+from smart_parking.pipeline.runner import ModularPipeline
 
 
-def _run_benchmark(cfg_path: str, seconds: float) -> dict[str, float]:
+def _run_detector_benchmark(cfg_path: str, seconds: float) -> dict[str, float]:
     cfg = load_config(cfg_path)
-    detector = create_detector(cfg.detection)
-    source = parse_source(cfg.source)
-    source.open()
-    loop = FrameLoop(source, max_queue=1)
+    run_cfg = effective_app_config(cfg)
+    active = resolve_active_stream(cfg)
+    detector = create_detector(run_cfg.detection)
+    source = open_frame_source(run_cfg, active)
+    loop = FrameLoop(source, max_queue=run_cfg.pipeline.queue_max)
 
     latencies: list[float] = []
     end = time.perf_counter() + seconds
@@ -39,6 +45,56 @@ def _run_benchmark(cfg_path: str, seconds: float) -> dict[str, float]:
     finally:
         source.close()
 
+    return _summarize_latencies(latencies)
+
+
+def _run_pipeline_benchmark(cfg_path: str, seconds: float) -> dict[str, float]:
+    cfg = load_config(cfg_path)
+    run_cfg = effective_app_config(cfg)
+    active = resolve_active_stream(cfg)
+    pipeline = ModularPipeline(run_cfg)
+    source = open_frame_source(run_cfg, active)
+    loop = FrameLoop(source, max_queue=run_cfg.pipeline.queue_max)
+
+    latencies: list[float] = []
+    end = time.perf_counter() + seconds
+    warmup = 50
+    idx = 0
+    gpu_util_sum = 0.0
+    gpu_samples = 0
+
+    try:
+        for ctx in loop:
+            if time.perf_counter() > end:
+                break
+            t0 = time.perf_counter()
+            pf = PipelineFrame(
+                camera_id=run_cfg.pipeline.camera_id,
+                frame_id=ctx.frame_id,
+                timestamp_ms=ctx.timestamp_ms,
+                correlation_id=new_correlation_id(),
+                image=ctx.image,
+            )
+            pf.extra["queue_depth"] = loop.queue_depth
+            pipeline.process(pf)
+            dt = (time.perf_counter() - t0) * 1000.0
+            idx += 1
+            if idx > warmup:
+                latencies.append(dt)
+                util, _ = read_gpu_utilization()
+                if util is not None:
+                    gpu_util_sum += util
+                    gpu_samples += 1
+    finally:
+        source.close()
+
+    out = _summarize_latencies(latencies)
+    if gpu_samples:
+        out["gpu_util_mean"] = gpu_util_sum / gpu_samples
+    return out
+
+
+def _summarize_latencies(latencies: list[float]) -> dict[str, float]:
     if not latencies:
         return {}
     latencies.sort()
@@ -52,6 +108,7 @@ def _run_benchmark(cfg_path: str, seconds: float) -> dict[str, float]:
         "latency_p50_ms": p50,
         "latency_p95_ms": p95,
         "fps": fps,
+        "pipeline_latency_ms": mean,
     }
 
 
@@ -59,6 +116,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/default.yaml")
     parser.add_argument("--seconds", type=float, default=30.0)
+    parser.add_argument("--pipeline", action="store_true", help="Benchmark full ModularPipeline")
     parser.add_argument("--mlflow", action="store_true", help="Log run to MLflow")
     parser.add_argument("--experiment", default=None, help="MLflow experiment name")
     parser.add_argument("--run-name", default=None, help="MLflow run name")
@@ -68,7 +126,10 @@ def main() -> None:
 
     cfg_path = Path(args.config)
     cfg = load_config(cfg_path)
-    metrics = _run_benchmark(str(cfg_path), args.seconds)
+    if args.pipeline:
+        metrics = _run_pipeline_benchmark(str(cfg_path), args.seconds)
+    else:
+        metrics = _run_detector_benchmark(str(cfg_path), args.seconds)
 
     if not metrics:
         print("no samples")
@@ -92,19 +153,23 @@ def main() -> None:
     dataset = None
     if args.dataset and args.dataset_version:
         dataset = DatasetRef(args.dataset, args.dataset_version)
+    exp_name = args.experiment or cfg.mlflow.experiment_name
 
     with ExperimentRun(
         run_name=run_name,
-        experiment_name=args.experiment,
+        experiment_name=exp_name,
         config_path=cfg_path,
         dataset=dataset,
         model_version=cfg.detection.model_path,
-        tags={"task": "benchmark_fps"},
+        tags={"task": "benchmark_pipeline" if args.pipeline else "benchmark_fps"},
     ) as run:
         log_model_info(
             cfg.detection.model_path,
             cfg.detection.backend,
-            {"imgsz": str(cfg.detection.imgsz)},
+            {
+                "imgsz": str(cfg.detection.imgsz),
+                "models_active": str(cfg.models.active or ""),
+            },
         )
         run.log_metrics(metrics)
 

@@ -20,7 +20,10 @@
 <body>
   <h1>Smart Parking — Pipeline Inspector</h1>
   <p>
-    Chế độ: <span id="mode">—</span> |
+    Camera:
+    <select id="camera-select"></select>
+    | Model registry: <span id="model-registry">—</span>
+    | Chế độ: <span id="mode">—</span> |
     Tổng thể: <span id="overall" class="status-pill">—</span> |
     Bất đồng fusion: <span id="disagree">0</span>
   </p>
@@ -33,6 +36,16 @@
     <section><h2>Model</h2><table id="health-model"></table></section>
     <section><h2>Occupancy</h2><table id="health-occupancy"></table></section>
   </div>
+  <section style="margin-bottom: 12px">
+    <h2>Frame hiện tại</h2>
+    <table id="current-frame"></table>
+  </section>
+  <section style="margin-bottom: 12px">
+    <h2>Cảnh báo theo frame (gần đây)</h2>
+    <table id="alerts-table">
+      <tr><th>frame_id</th><th>code</th><th>correlation_id</th><th>ts_ms</th></tr>
+    </table>
+  </section>
   <section style="margin-bottom: 12px">
     <h2>Baseline (frame gần nhất)</h2>
     <table id="baseline"></table>
@@ -67,7 +80,7 @@
       <pre id="stage-timing">—</pre>
     </section>
     <section style="grid-column: 1 / -1">
-      <h2>Log gần đây</h2>
+      <h2>Log gần đây <label style="font-weight:normal;font-size:0.8rem">frame_id <input id="log-filter" size="6" placeholder="all" /></label></h2>
       <pre id="logs"></pre>
     </section>
   </div>
@@ -147,9 +160,41 @@
         el.appendChild(tr);
       }
     }
+    let selectedCamera = null;
+
+    function fillAlertsTable(alerts) {
+      const tbody = document.getElementById('alerts-table');
+      tbody.innerHTML = '<tr><th>frame_id</th><th>code</th><th>correlation_id</th><th>ts_ms</th></tr>';
+      const rows = (alerts || []).slice().sort((a, b) => (b.frame_id || 0) - (a.frame_id || 0));
+      for (const a of rows.slice(0, 30)) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${a.frame_id ?? '—'}</td><td class="warn">${a.code ?? '—'}</td><td>${a.correlation_id ?? '—'}</td><td>${a.ts_ms ?? '—'}</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    function syncCameraSelect(cameras, activeId) {
+      const sel = document.getElementById('camera-select');
+      const prev = selectedCamera || activeId;
+      sel.innerHTML = '';
+      for (const c of cameras || []) {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = `${c.id} (${c.overall_status || 'IDLE'})`;
+        if (c.id === prev) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      if (!sel.value && cameras && cameras[0]) sel.value = cameras[0].id;
+      selectedCamera = sel.value;
+      sel.onchange = () => { selectedCamera = sel.value; refresh(); };
+    }
+
     async function refresh() {
-      const r = await fetch('/api/state');
+      const q = selectedCamera ? `?camera_id=${encodeURIComponent(selectedCamera)}` : '';
+      const r = await fetch('/api/state' + q);
       const data = await r.json();
+      syncCameraSelect(data.cameras, data.active_camera_id);
+      document.getElementById('model-registry').textContent = data.model_registry_id || '—';
       document.getElementById('mode').textContent = data.config_mode || 'normal';
       const overall = document.getElementById('overall');
       overall.textContent = data.overall_status || '—';
@@ -157,8 +202,12 @@
       document.getElementById('disagree').textContent = data.fusion_disagreements ?? 0;
       fillHealthTable(document.getElementById('baseline'), data.baseline || {}, [
         'fps', 'pipeline_latency_ms', 'dropped_frames', 'ram_mb',
-        'gpu_util_percent', 'vram_mb', 'frame_id', 'updated_at',
+        'gpu_util_percent', 'vram_mb', 'frame_id', 'correlation_id', 'updated_at',
       ]);
+      fillHealthTable(document.getElementById('current-frame'), data.current_frame || {}, [
+        'frame_id', 'correlation_id', 'alerts_this_frame', 'slot_counts',
+      ]);
+      fillAlertsTable(data.recent_alerts);
       const ing = data.ingest || {};
       const mod = data.model || {};
       const occ = data.occupancy || {};
@@ -198,7 +247,13 @@
           <td class="${err !== '—' ? 'bad' : ''}">${err}</td>`;
         tbody.appendChild(tr);
       }
-      document.getElementById('logs').textContent = JSON.stringify(data.logs || [], null, 2);
+      const filterVal = document.getElementById('log-filter').value.trim();
+      let logs = data.logs || [];
+      if (filterVal) {
+        const fid = parseInt(filterVal, 10);
+        logs = logs.filter((e) => e.frame_id === fid);
+      }
+      document.getElementById('logs').textContent = JSON.stringify(logs, null, 2);
     }
     setInterval(refresh, 1000);
     refresh();

@@ -12,6 +12,10 @@ Mặc định: `configs/default.yaml` hoặc biến môi trường `SMART_PARKIN
 | Khóa | Kiểu | Mặc định | Mô tả |
 |------|------|----------|--------|
 | `source` | str | `data/sample.mp4` | Đường dẫn, `webcam:N`, hoặc `rtsp://` |
+| `cameras[]` | list | — | Nhiều stream (design); MVP chạy `active_camera` |
+| `active_camera` | str | — | `id` camera đang mở |
+| `models.registry` / `models.active` | — | — | Weight được phép deploy → map `detection.*` |
+| `pipeline.queue_max` | int | 1 | `1` + `drop_frames_in_realtime` → frame mới nhất (live) |
 | `slots_path` | str | `configs/slots/...` | Polygon slot |
 | `pipeline.mode` | str | `normal` | normal / debug / replay / benchmark |
 | `pipeline.layers.*` | bool | — | Bật/tắt từng tầng |
@@ -29,6 +33,16 @@ Mặc định: `configs/default.yaml` hoặc biến môi trường `SMART_PARKIN
 | `analytics.log_path` | str | `logs/events.jsonl` | Sự kiện KPI |
 
 Chi tiết pipeline: `pipeline/`, `fusion/`, `detr/`, `artifacts/` trong `config.py`.
+
+### Debug nhanh (tắt tầng)
+
+| Mục tiêu | `pipeline.layers` |
+|----------|-------------------|
+| Chỉ YOLO | `yolo: true`, `detr: false`, `fusion: false` |
+| DETR + fusion | `detr: true`, `yolo: true`, `fusion: true` |
+| Server headless | `overlay: false`, `ui.enabled: false` |
+
+Quy trình: `benchmark.yaml` + MLflow → `debug.yaml` + Inspector → `server.yaml` prod.
 
 ## Checklist review
 

@@ -1,5 +1,6 @@
 # Kịch bản B: server GPU — nguồn RTSP từ client
 # Đổi CLIENT_IP và path stream
+# queue_max: 1 + drop_frames_in_realtime: true → luôn infer frame mới nhất (live)
 source: rtsp://CLIENT_IP:8554/parking
 slots_path: configs/slots/parking_lot_01.json
 
@@ -41,3 +42,11 @@ artifacts:
 
 analytics:
   log_path: logs/events.jsonl
+  alerts:
+    enabled: true
+    log_path: logs/alerts.jsonl
+    cooldown_seconds: 30.0
+    on_ingest_degraded: true
+    on_ingest_unhealthy: true
+    on_model_unhealthy: true
+    on_slot_stale: true

@@ -108,3 +108,16 @@ class AlertEngine:
         with self._path.open("a", encoding="utf-8") as fh:
             fh.write(line + "\n")
         _log.warning("ALERT %s frame=%s %s", alert["code"], frame_id, alert.get("detail"))
+        from smart_parking.pipeline.observability import get_inspector_store
+
+        get_inspector_store(camera_id).append_alert(
+            {
+                "ts_ms": payload["ts"] * 1000,
+                "camera_id": camera_id,
+                "frame_id": frame_id,
+                "correlation_id": correlation_id,
+                "code": alert["code"],
+                "severity": alert.get("severity", "warning"),
+                "detail": alert.get("detail"),
+            }
+        )

@@ -24,6 +24,12 @@ class FrameLoop:
         self._on_drop = on_drop
         self._buffer: deque[FrameContext] = deque(maxlen=self._max_queue)
 
+    @property
+    def queue_depth(self) -> int:
+        if self._max_queue <= 1:
+            return 0
+        return len(self._buffer)
+
     def __iter__(self) -> Iterator[FrameContext]:
         while True:
             ctx = self._source.read()

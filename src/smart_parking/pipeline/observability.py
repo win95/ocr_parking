@@ -61,7 +61,7 @@ def log_stage(
         _log.warning(line)
     else:
         _log.info(line)
-    INSPECTOR_STORE.append_log(payload)
+    INSPECTOR_REGISTRY.get_store(camera_id).append_log(payload)
 
 
 @dataclass
@@ -102,17 +102,21 @@ class InspectorSnapshot:
     previews: dict[str, Any] = field(default_factory=dict)
     fusion_disagreements: int = 0
     config_mode: str = "normal"
+    model_registry_id: str | None = None
     ingest: IngestSnapshot = field(default_factory=IngestSnapshot)
     model: ModelHealthSnapshot = field(default_factory=ModelHealthSnapshot)
     occupancy: OccupancyHealthSnapshot = field(default_factory=OccupancyHealthSnapshot)
+    recent_alerts: list[dict[str, Any]] = field(default_factory=list)
+    current_frame: dict[str, Any] = field(default_factory=dict)
 
 
 class InspectorStateStore:
     """Thread-safe holder for inspector UI."""
 
-    def __init__(self, max_logs: int = 500) -> None:
+    def __init__(self, max_logs: int = 500, max_alerts: int = 50) -> None:
         self._lock = threading.Lock()
         self._max_logs = max_logs
+        self._max_alerts = max_alerts
         self.snapshot = InspectorSnapshot()
 
     def update_metrics(self, metrics: PipelineMetrics) -> None:
@@ -128,6 +132,22 @@ class InspectorStateStore:
             self.snapshot.logs.append(entry)
             if len(self.snapshot.logs) > self._max_logs:
                 self.snapshot.logs = self.snapshot.logs[-self._max_logs :]
+
+    def append_alert(self, entry: dict[str, Any]) -> None:
+        with self._lock:
+            self.snapshot.recent_alerts.append(entry)
+            if len(self.snapshot.recent_alerts) > self._max_alerts:
+                self.snapshot.recent_alerts = self.snapshot.recent_alerts[
+                    -self._max_alerts :
+                ]
+
+    def set_current_frame(self, payload: dict[str, Any]) -> None:
+        with self._lock:
+            self.snapshot.current_frame = payload
+
+    def set_model_registry_id(self, registry_id: str | None) -> None:
+        with self._lock:
+            self.snapshot.model_registry_id = registry_id
 
     def set_preview(self, key: str, value: Any) -> None:
         with self._lock:
@@ -245,6 +265,7 @@ class InspectorStateStore:
                 "previews": self.snapshot.previews,
                 "fusion_disagreements": self.snapshot.fusion_disagreements,
                 "config_mode": self.snapshot.config_mode,
+                "model_registry_id": self.snapshot.model_registry_id,
                 "ingest": ing_h,
                 "model": mod_h,
                 "occupancy": occ_h,
@@ -252,6 +273,8 @@ class InspectorStateStore:
                 "baseline": baseline_metrics(m),
                 "overall_status": overall_health(ing_st, mod_st, occ_st),
                 "ingest_detail": detail.model_dump(),
+                "recent_alerts": list(self.snapshot.recent_alerts[-50:]),
+                "current_frame": dict(self.snapshot.current_frame),
             }
 
 
@@ -291,4 +314,97 @@ def _ingest_contract(ing: IngestSnapshot, now_ms: float) -> IngestStatusContract
     )
 
 
-INSPECTOR_STORE = InspectorStateStore()
+class InspectorRegistry:
+    """Per-camera inspector stores plus configured stream metadata."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._stores: dict[str, InspectorStateStore] = {}
+        self._active_id = "cam0"
+        self._configured: list[dict[str, Any]] = []
+
+    def configure_streams(
+        self,
+        streams: list[Any],
+        active_id: str,
+        model_registry_id: str | None = None,
+    ) -> None:
+        with self._lock:
+            self._active_id = active_id
+            self._configured = [
+                {
+                    "id": s.id,
+                    "source": s.source,
+                    "enabled": s.enabled,
+                    "slots_path": s.slots_path,
+                }
+                for s in streams
+            ]
+            for stream in streams:
+                store = self._stores.setdefault(stream.id, InspectorStateStore())
+                store.set_model_registry_id(model_registry_id)
+
+    def set_active(self, camera_id: str) -> None:
+        with self._lock:
+            self._active_id = camera_id
+
+    def get_store(self, camera_id: str | None = None) -> InspectorStateStore:
+        cid = camera_id or self._active_id
+        with self._lock:
+            return self._stores.setdefault(cid, InspectorStateStore())
+
+    @property
+    def active_store(self) -> InspectorStateStore:
+        return self.get_store(None)
+
+    def list_cameras(self) -> list[dict[str, Any]]:
+        with self._lock:
+            out: list[dict[str, Any]] = []
+            for meta in self._configured:
+                cid = meta["id"]
+                store = self._stores.get(cid)
+                summary = store.to_dict() if store else {}
+                out.append(
+                    {
+                        **meta,
+                        "active": cid == self._active_id,
+                        "overall_status": summary.get("overall_status", "IDLE"),
+                    }
+                )
+            if not out and self._stores:
+                for cid, store in self._stores.items():
+                    out.append(
+                        {
+                            "id": cid,
+                            "source": store.snapshot.ingest.source,
+                            "enabled": True,
+                            "active": cid == self._active_id,
+                            "overall_status": store.to_dict().get("overall_status"),
+                        }
+                    )
+            return out
+
+    def to_dict(self, camera_id: str | None = None) -> dict[str, Any]:
+        cid = camera_id or self._active_id
+        payload = self.get_store(cid).to_dict()
+        payload["active_camera_id"] = self._active_id
+        payload["cameras"] = self.list_cameras()
+        return payload
+
+
+class _ActiveInspectorProxy:
+    """Backward-compatible delegate to the active camera store."""
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(INSPECTOR_REGISTRY.active_store, name)
+
+    def to_dict(self) -> dict[str, Any]:
+        return INSPECTOR_REGISTRY.to_dict()
+
+
+INSPECTOR_REGISTRY = InspectorRegistry()
+INSPECTOR_STORE = _ActiveInspectorProxy()
+
+
+def get_inspector_store(camera_id: str) -> InspectorStateStore:
+    return INSPECTOR_REGISTRY.get_store(camera_id)

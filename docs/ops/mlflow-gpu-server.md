@@ -57,7 +57,23 @@ Giai đoạn sau: webhook/email (chưa triển khai).
 
 ## 4. Quy trình gợi ý
 
-1. Chạy pipeline `experiment_gpu.yaml` xem overlay.
-2. Benchmark `--mlflow` ghi baseline FPS/latency.
-3. Đổi `detection.model_path` / confidence → run MLflow mới → so sánh UI.
-4. Theo dõi `alerts_eval.jsonl` khi test RTSP rớt hoặc slot stale.
+1. `verify_gpu_ready.py`
+2. `python scripts/benchmark_fps.py --config configs/modes/benchmark.yaml --seconds 60 --mlflow` (tùy chọn `--pipeline` cho E2E)
+3. `mlflow ui --port 5000`
+4. Debug qualitative: `configs/modes/experiment_gpu.yaml` + Inspector `:8765`
+5. Promote: cập nhật `detection.model_path` hoặc `models.active` + `configs/deploy/server.yaml`
+
+### Model registry (YAML)
+
+```yaml
+models:
+  active: yolo11n-default
+  registry:
+    - id: yolo11n-default
+      path: models/yolo11n.pt
+      backend: pytorch
+      status: approved
+      mlflow_run_id: "<run-id>"
+```
+
+Chạy lặp benchmark: `bash scripts/bench_models.sh configs/modes/benchmark.yaml`

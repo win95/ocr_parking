@@ -15,11 +15,9 @@
 | Minimap | `ui/minimap_3d.py` | Có (`SlotStateContract`) |
 | API Inspector | `api/inspector.py` | `python -m smart_parking --inspector-only` |
 
-Điều phối: `pipeline/runner.py` (`ModularPipeline`).
+Điều phối: `pipeline/runner.py` (`ModularPipeline`). Ingest theo config: `ingest/registry.py` → `runtime/session.py`.
 
-Hợp đồng dữ liệu: `contracts.py` (schema v1).
-
-Quan sát: `pipeline/observability.py` — correlation ID, log JSON, `INSPECTOR_STORE`.
+Quan sát: `pipeline/observability.py` — `INSPECTOR_REGISTRY` (theo `camera_id`), log JSON, cảnh báo theo frame.
 
 Artifact replay: `replay/store.py` khi `artifacts.enabled`.
 

@@ -6,6 +6,7 @@ import argparse
 
 from smart_parking.app import run_app
 from smart_parking.config import load_config
+from smart_parking.ingest.registry import apply_active_source_override
 
 
 def _parse_args() -> argparse.Namespace:
@@ -25,7 +26,7 @@ def main() -> None:
     args = _parse_args()
     cfg = load_config(args.config)
     if args.source:
-        cfg = cfg.model_copy(update={"source": args.source})
+        cfg = apply_active_source_override(cfg, args.source)
     if args.backend and cfg.yolo:
         yolo = cfg.yolo.model_copy(update={"backend": args.backend})
         cfg = cfg.model_copy(update={"yolo": yolo, "detection": yolo})
