@@ -30,7 +30,7 @@ def test_ingest_degraded_logged(tmp_path) -> None:
     lines = log_path.read_text(encoding="utf-8").strip().splitlines()
     row = json.loads(lines[0])
     assert row["frame_id"] == 7
-    assert row["channel"] == "log"
+    assert row["channel"] == "ops"
 
 
 def test_cooldown_suppresses_repeat(tmp_path) -> None:

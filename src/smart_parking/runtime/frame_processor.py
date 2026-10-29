@@ -13,6 +13,7 @@ from smart_parking.analytics import AlertEngine, KPIEngine
 from smart_parking.config import AppConfig
 from smart_parking.ingest.frame_loop import FrameLoop
 from smart_parking.pipeline.context import PipelineFrame
+from smart_parking.pipeline.frame_sample_buffer import FrameSampleBuffer
 from smart_parking.pipeline.observability import get_inspector_store, new_correlation_id
 from smart_parking.pipeline.runner import ModularPipeline
 from smart_parking.replay.store import ArtifactStore
@@ -38,6 +39,7 @@ def consume_frames(
     artifacts: ArtifactStore | None,
     alerts: AlertEngine | None,
     fps_state: dict,
+    fire_smoke_buffer: FrameSampleBuffer | None = None,
 ) -> StreamExitReason:
     """Process frames until the source is exhausted or UI quit."""
     read_timeout = cfg.ingest.read_timeout_ms if source.is_live else None
@@ -55,6 +57,8 @@ def consume_frames(
     ui_enabled = cfg.ui.enabled
     for raw in loop:
         mark_frame_received(raw.timestamp_ms)
+        if fire_smoke_buffer is not None:
+            fire_smoke_buffer.offer(raw.frame_id, raw.timestamp_ms, raw.image)
         pf = PipelineFrame(
             camera_id=cfg.pipeline.camera_id,
             frame_id=raw.frame_id,

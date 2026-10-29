@@ -109,6 +109,10 @@ class InspectorSnapshot:
     recent_alerts: list[dict[str, Any]] = field(default_factory=list)
     current_frame: dict[str, Any] = field(default_factory=dict)
     last_alert_context: dict[str, Any] = field(default_factory=dict)
+    detection_model: dict[str, Any] = field(default_factory=dict)
+    detection: dict[str, Any] = field(default_factory=dict)
+    fire_smoke: dict[str, Any] = field(default_factory=dict)
+    fire_smoke_frame: dict[str, Any] = field(default_factory=dict)
 
 
 class InspectorStateStore:
@@ -153,6 +157,22 @@ class InspectorStateStore:
     def set_last_alert_context(self, payload: dict[str, Any]) -> None:
         with self._lock:
             self.snapshot.last_alert_context = payload
+
+    def set_detection_model(self, payload: dict[str, Any]) -> None:
+        with self._lock:
+            self.snapshot.detection_model = payload
+
+    def set_detection(self, payload: dict[str, Any]) -> None:
+        with self._lock:
+            self.snapshot.detection = payload
+
+    def set_fire_smoke(self, payload: dict[str, Any]) -> None:
+        with self._lock:
+            self.snapshot.fire_smoke = payload
+
+    def set_fire_smoke_frame(self, payload: dict[str, Any]) -> None:
+        with self._lock:
+            self.snapshot.fire_smoke_frame = payload
 
     def set_preview(self, key: str, value: Any) -> None:
         with self._lock:
@@ -280,6 +300,10 @@ class InspectorStateStore:
                 "ingest_detail": detail.model_dump(),
                 "recent_alerts": list(self.snapshot.recent_alerts[-50:]),
                 "current_frame": dict(self.snapshot.current_frame),
+                "detection_model": dict(self.snapshot.detection_model),
+                "detection": dict(self.snapshot.detection),
+                "fire_smoke": dict(self.snapshot.fire_smoke),
+                "fire_smoke_frame": dict(self.snapshot.fire_smoke_frame),
             }
 
 

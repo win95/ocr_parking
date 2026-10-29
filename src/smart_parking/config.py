@@ -144,8 +144,23 @@ class AlertsConfig(BaseModel):
     on_ingest_degraded: bool = True
     on_ingest_unhealthy: bool = True
     on_model_unhealthy: bool = True
+    on_fire: bool = True
+    on_smoke: bool = True
     on_slot_stale: bool = True
     utilization_pct_threshold: float | None = None
+    save_frame_dir: str | None = None
+
+
+class FireSmokeConfig(BaseModel):
+    """Slow auxiliary stream for fire/smoke (separate from parking FPS)."""
+
+    enabled: bool = False
+    scan_interval_seconds: float = 2.0
+    min_confidence: float = 0.35
+    fire_class_names: list[str] = Field(default_factory=lambda: ["fire"])
+    smoke_class_names: list[str] = Field(default_factory=lambda: ["smoke"])
+    run_yolo: bool = True
+    run_detr: bool = True
     save_frame_dir: str | None = None
 
 
@@ -208,6 +223,7 @@ class AppConfig(BaseModel):
     tracking: TrackingConfig = Field(default_factory=TrackingConfig)
     ui: UiConfig = Field(default_factory=UiConfig)
     analytics: AnalyticsConfig = Field(default_factory=AnalyticsConfig)
+    fire_smoke: FireSmokeConfig = Field(default_factory=FireSmokeConfig)
     inspector: InspectorConfig = Field(default_factory=InspectorConfig)
     artifacts: ArtifactsConfig = Field(default_factory=ArtifactsConfig)
     replay_path: str | None = None

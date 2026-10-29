@@ -16,6 +16,7 @@ from smart_parking.occupancy.engine import OccupancyEngine
 from smart_parking.occupancy.slots import load_slots
 from smart_parking.pipeline.coasting import apply_track_coasting_to_slots
 from smart_parking.pipeline.context import PipelineFrame
+from smart_parking.pipeline.detection_snapshot import summarize_detections
 from smart_parking.pipeline.gpu_stats import read_gpu_utilization
 from smart_parking.pipeline.observability import get_inspector_store
 from smart_parking.pipeline.stages.base import PipelineStage
@@ -110,6 +111,19 @@ class ModularPipeline:
             _YoloStage(cfg.pipeline.layers.yolo, self._yolo),
         ]
         get_inspector_store(cfg.pipeline.camera_id).snapshot.config_mode = cfg.pipeline.mode
+        if cfg.yolo:
+            get_inspector_store(cfg.pipeline.camera_id).set_detection_model(
+                {
+                    "model_path": cfg.yolo.model_path,
+                    "backend": cfg.yolo.backend,
+                    "imgsz": cfg.yolo.imgsz,
+                    "confidence": cfg.yolo.confidence,
+                    "device": cfg.yolo.device,
+                    "yolo_enabled": cfg.pipeline.layers.yolo,
+                    "detr_enabled": cfg.pipeline.layers.detr,
+                    "fusion_enabled": cfg.pipeline.layers.fusion,
+                }
+            )
 
     def process(self, frame: PipelineFrame) -> PipelineFrame:
         store = get_inspector_store(frame.camera_id)
@@ -207,6 +221,7 @@ class ModularPipeline:
         frame.metrics = metrics
         store.update_metrics(metrics)
         store.snapshot.fusion_disagreements = frame.fusion_disagreements
+        store.set_detection(summarize_detections(frame))
         return frame
 
     def _run_fusion(self, frame: PipelineFrame) -> tuple[list, StageTiming]:

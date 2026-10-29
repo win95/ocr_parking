@@ -33,6 +33,8 @@ _REQUIRED_STATE_KEYS = frozenset(
         "current_frame",
         "active_camera_id",
         "cameras",
+        "detection_model",
+        "detection",
     }
 )
 

@@ -31,6 +31,20 @@ def save_alert_frame(save_dir: str, pf: PipelineFrame, raw: FrameContext, code: 
     cv2.imwrite(str(path), compose_vis(pf, raw))
 
 
+def save_alert_frame_from_raw(
+    save_dir: str,
+    camera_id: str,
+    frame_id: int,
+    correlation_id: str,
+    image,
+    code: str,
+) -> None:
+    folder = Path(save_dir)
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{camera_id}_{frame_id:06d}_{code}_{correlation_id[:8]}.jpg"
+    cv2.imwrite(str(path), image)
+
+
 def show_frame(
     cfg: AppConfig,
     pf: PipelineFrame,

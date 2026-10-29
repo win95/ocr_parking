@@ -25,10 +25,12 @@ from smart_parking.ingest.telemetry import (
     set_reconnect_count,
 )
 from smart_parking.occupancy import load_slots
+from smart_parking.pipeline.frame_sample_buffer import FrameSampleBuffer
 from smart_parking.pipeline.observability import INSPECTOR_REGISTRY
 from smart_parking.pipeline.runner import ModularPipeline
 from smart_parking.replay.store import ArtifactStore
 from smart_parking.runtime.alert_poll import AlertPollWorker
+from smart_parking.runtime.fire_smoke_worker import FireSmokeWorker
 from smart_parking.runtime.frame_processor import StreamExitReason, consume_frames
 from smart_parking.runtime.inspector_boot import start_inspector
 
@@ -67,10 +69,16 @@ def run_ingest_session(cfg: AppConfig) -> None:
     set_reconnect_count(0)
 
     poll_worker: AlertPollWorker | None = None
+    fs_buffer: FrameSampleBuffer | None = None
+    fs_worker: FireSmokeWorker | None = None
     if alert_engine is not None:
         interval = min(15.0, max(2.0, run_cfg.analytics.alerts.cooldown_seconds / 2.0))
         poll_worker = AlertPollWorker(alert_engine, run_cfg.pipeline.camera_id, interval)
         poll_worker.start()
+    if run_cfg.fire_smoke.enabled:
+        fs_buffer = FrameSampleBuffer()
+        fs_worker = FireSmokeWorker(run_cfg, fs_buffer, alert_engine)
+        fs_worker.start()
 
     fps_state = {"fps": 0.0, "t_prev": time.perf_counter()}
     live = is_live_source(active.source)
@@ -85,7 +93,14 @@ def run_ingest_session(cfg: AppConfig) -> None:
                 mark_stream_available()
                 live = source.is_live
                 exit_reason = consume_frames(
-                    run_cfg, source, pipeline, kpi, artifacts, alert_engine, fps_state
+                    run_cfg,
+                    source,
+                    pipeline,
+                    kpi,
+                    artifacts,
+                    alert_engine,
+                    fps_state,
+                    fs_buffer,
                 )
                 if exit_reason is StreamExitReason.USER_QUIT:
                     _log.info("Stopped by user (UI quit)")
@@ -126,6 +141,8 @@ def run_ingest_session(cfg: AppConfig) -> None:
             )
             time.sleep(run_cfg.ingest.reconnect_delay_seconds)
     finally:
+        if fs_worker is not None:
+            fs_worker.stop()
         if poll_worker is not None:
             poll_worker.stop()
         if run_cfg.ui.enabled:

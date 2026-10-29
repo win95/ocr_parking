@@ -46,7 +46,18 @@ analytics:
     enabled: true
     log_path: logs/alerts.jsonl
     cooldown_seconds: 30.0
+    on_fire: true
+    on_smoke: true
     on_ingest_degraded: true
     on_ingest_unhealthy: true
     on_model_unhealthy: true
     on_slot_stale: true
+
+fire_smoke:
+  enabled: true
+  scan_interval_seconds: 2.0
+  min_confidence: 0.35
+  fire_class_names: ["fire"]
+  smoke_class_names: ["smoke"]
+  run_yolo: true
+  run_detr: true

@@ -73,6 +73,49 @@ class AlertEngine:
             self._write(camera_id, frame_id, correlation_id, alert)
         return fired
 
+    def evaluate_fire_smoke(
+        self,
+        *,
+        camera_id: str,
+        frame_id: int,
+        correlation_id: str,
+        hits: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        if not self._cfg.enabled:
+            return []
+        fired: list[dict[str, Any]] = []
+        for hit in hits:
+            kind = str(hit.get("kind") or "")
+            if kind == "fire" and not self._cfg.on_fire:
+                continue
+            if kind == "smoke" and not self._cfg.on_smoke:
+                continue
+            if kind not in ("fire", "smoke"):
+                continue
+            model = str(hit.get("model") or "unknown")
+            code = f"{kind}_detected"
+            cooldown_key = f"{code}:{model}"
+            detail = {
+                "stream": "fire_smoke",
+                "model": model,
+                "class_name": hit.get("class_name"),
+                "confidence": hit.get("confidence"),
+                "bbox_xyxy": hit.get("bbox_xyxy"),
+            }
+            if not self._cooldown_ok(cooldown_key):
+                continue
+            fired.append({"code": code, "severity": "critical", "detail": detail})
+            self._last_fired[cooldown_key] = time.time()
+        for alert in fired:
+            self._write(
+                camera_id,
+                frame_id,
+                correlation_id,
+                alert,
+                channel="fire_smoke",
+            )
+        return fired
+
     def evaluate_from_store(self, camera_id: str) -> list[dict[str, Any]]:
         """Evaluate rules from latest Inspector snapshot (no new frame required)."""
         from smart_parking.pipeline.observability import get_inspector_store
@@ -113,13 +156,15 @@ class AlertEngine:
         frame_id: int,
         correlation_id: str,
         alert: dict[str, Any],
+        *,
+        channel: str = "ops",
     ) -> None:
         payload = {
             "ts": time.time(),
             "camera_id": camera_id,
             "frame_id": frame_id,
             "correlation_id": correlation_id,
-            "channel": "log",
+            "channel": channel,
             **alert,
         }
         line = json.dumps(payload, default=str)
@@ -134,6 +179,7 @@ class AlertEngine:
                 "camera_id": camera_id,
                 "frame_id": frame_id,
                 "correlation_id": correlation_id,
+                "channel": channel,
                 "code": alert["code"],
                 "severity": alert.get("severity", "warning"),
                 "detail": alert.get("detail"),

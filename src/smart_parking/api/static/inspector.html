@@ -37,13 +37,26 @@
     <section><h2>Occupancy</h2><table id="health-occupancy"></table></section>
   </div>
   <section style="margin-bottom: 12px">
-    <h2>Frame hiện tại</h2>
+    <h2>Model detect (YOLO / fusion)</h2>
+    <table id="detection-model"></table>
+    <table id="detection-frame" style="margin-top:8px"></table>
+    <pre id="detection-samples" style="margin-top:8px;max-height:160px">—</pre>
+  </section>
+  <section style="margin-bottom: 12px">
+    <h2>Frame hiện tại (bãi xe)</h2>
     <table id="current-frame"></table>
+  </section>
+  <section style="margin-bottom: 12px">
+    <h2>Cháy / khói — luồng chậm (YOLO + DETR)</h2>
+    <p style="font-size:0.8rem;color:#aaa">Quét định kỳ trên frame mới nhất; tách khỏi FPS pipeline occupancy.</p>
+    <table id="fire-smoke-scan"></table>
+    <table id="fire-smoke-frame" style="margin-top:8px"></table>
+    <pre id="fire-smoke-hits" style="margin-top:8px;max-height:120px">—</pre>
   </section>
   <section style="margin-bottom: 12px">
     <h2>Cảnh báo theo frame (gần đây)</h2>
     <table id="alerts-table">
-      <tr><th>frame_id</th><th>code</th><th>correlation_id</th><th>ts_ms</th></tr>
+      <tr><th>channel</th><th>frame_id</th><th>code</th><th>correlation_id</th><th>ts_ms</th></tr>
     </table>
   </section>
   <section style="margin-bottom: 12px">
@@ -165,11 +178,12 @@
 
     function fillAlertsTable(alerts) {
       const tbody = document.getElementById('alerts-table');
-      tbody.innerHTML = '<tr><th>frame_id</th><th>code</th><th>correlation_id</th><th>ts_ms</th></tr>';
+      tbody.innerHTML = '<tr><th>channel</th><th>frame_id</th><th>code</th><th>correlation_id</th><th>ts_ms</th></tr>';
       const rows = (alerts || []).slice().sort((a, b) => (b.frame_id || 0) - (a.frame_id || 0));
       for (const a of rows.slice(0, 30)) {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${a.frame_id ?? '—'}</td><td class="warn">${a.code ?? '—'}</td><td>${a.correlation_id ?? '—'}</td><td>${a.ts_ms ?? '—'}</td>`;
+        const ch = a.channel || 'ops';
+        tr.innerHTML = `<td>${ch}</td><td>${a.frame_id ?? '—'}</td><td class="warn">${a.code ?? '—'}</td><td>${a.correlation_id ?? '—'}</td><td>${a.ts_ms ?? '—'}</td>`;
         tbody.appendChild(tr);
       }
     }
@@ -214,7 +228,30 @@
       fillHealthTable(document.getElementById('current-frame'), data.current_frame || {}, [
         'frame_id', 'correlation_id', 'alerts_this_frame', 'slot_counts',
       ]);
+      const fs = data.fire_smoke || {};
+      fillHealthTable(document.getElementById('fire-smoke-scan'), fs, [
+        'stream', 'scan_interval_seconds', 'last_scan_ms', 'frame_id', 'correlation_id',
+        'yolo_latency_ms', 'detr_latency_ms', 'hit_count',
+      ]);
+      fillHealthTable(document.getElementById('fire-smoke-frame'), data.fire_smoke_frame || {}, [
+        'stream', 'frame_id', 'correlation_id', 'timestamp_ms', 'hit_count',
+      ]);
+      document.getElementById('fire-smoke-hits').textContent = fs.hits
+        ? JSON.stringify(fs.hits, null, 2)
+        : '—';
       fillAlertsTable(data.recent_alerts);
+      fillHealthTable(document.getElementById('detection-model'), data.detection_model || {}, [
+        'model_path', 'backend', 'device', 'imgsz', 'confidence',
+        'yolo_enabled', 'detr_enabled', 'fusion_enabled',
+      ]);
+      const det = data.detection || {};
+      fillHealthTable(document.getElementById('detection-frame'), det, [
+        'frame_id', 'correlation_id', 'yolo_count', 'detr_count', 'fused_count',
+        'track_count', 'yolo_latency_ms', 'detr_latency_ms', 'truncated',
+      ]);
+      document.getElementById('detection-samples').textContent = det.by_class || det.samples
+        ? JSON.stringify({ by_class: det.by_class || {}, samples: det.samples || [] }, null, 2)
+        : '—';
       const ing = data.ingest || {};
       const mod = data.model || {};
       const occ = data.occupancy || {};
